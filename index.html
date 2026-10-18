@@ -1,0 +1,1567 @@
+<!doctype html>
+<html lang="en-GB" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Stride</title>
+<meta name="description" content="Record runs, rides and walks with GPS: route map, pace, speed, splits and elevation.">
+<meta name="theme-color" content="#eef2f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1418" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Stride">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
+<style>
+:root{
+  --bg:#eef2f3; --surface:#ffffff; --surface2:#f5f7f8; --ink:#14202a; --ink2:#43515d; --muted:#67747f; --line:#d5dce0;
+  --run:#d42a6c; --ride:#2a67d6; --walk:#b07d0a; --ele:#8a6a42; --danger:#c42f28; --good:#1d7f55;
+  --accent:var(--run); --on-accent:#ffffff; --scrim:rgba(10,16,20,.45);
+  --cond:'Barlow Condensed','Arial Narrow',system-ui,sans-serif; --body:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --r-sm:10px; --r:16px; --r-lg:24px;
+  --tabh:68px; --safe-b:env(safe-area-inset-bottom,0px); --safe-t:env(safe-area-inset-top,0px);
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --bg:#0e1418; --surface:#182027; --surface2:#1f2930; --ink:#e7edf0; --ink2:#b4bfc7; --muted:#8a96a0; --line:#2c3842;
+  --run:#e8487f; --ride:#4f86ea; --walk:#b8841a; --ele:#b89468; --danger:#ef6158; --good:#4cc08b;
+  --scrim:rgba(0,0,0,.6); color-scheme:dark;
+}
+body[data-type="ride"]{--accent:var(--ride)} body[data-type="walk"]{--accent:var(--walk)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.4;overscroll-behavior:none}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;padding:0}
+button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+h1,h2,h3{margin:0;font-weight:700;line-height:1.15}
+svg.i{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.num{font-family:var(--cond);font-variant-numeric:tabular-nums;letter-spacing:.005em}
+
+/* ---------- app frame ---------- */
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+#views{flex:1;min-height:0;position:relative}
+.view{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-top:var(--safe-t)}
+.scroll-pad{padding:18px 16px calc(28px);max-width:640px;margin:0 auto}
+.tabs{display:flex;background:var(--surface);border-top:1px solid var(--line);padding-bottom:var(--safe-b);flex:none}
+.tabs button{flex:1;height:var(--tabh);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--muted);font-size:13px;font-weight:600;position:relative}
+.tabs button[aria-selected="true"]{color:var(--ink)}
+.tabs button[aria-selected="true"]::before{content:"";position:absolute;top:0;left:28%;right:28%;height:3px;border-radius:0 0 3px 3px;background:var(--accent)}
+.tabs .recdot{position:absolute;top:12px;right:calc(50% - 20px);width:10px;height:10px;border-radius:50%;background:var(--danger);box-shadow:0 0 0 3px var(--surface)}
+.vtitle{font-family:var(--cond);font-size:34px;font-weight:700;letter-spacing:.01em;margin:4px 0 14px}
+.vhead{display:flex;align-items:center;justify-content:space-between;gap:12px}
+
+/* ---------- record ---------- */
+#v-record{display:flex;flex-direction:column;overflow:hidden;padding-top:0}
+.map-wrap{position:relative;flex:1 1 auto;min-height:170px;background:var(--surface2)}
+.map{position:absolute;inset:0;background:var(--surface2)}
+.map.nomap{display:flex;align-items:center;justify-content:center;color:var(--muted);text-align:center;padding:24px;font-size:15px}
+.map-top{position:absolute;left:12px;right:12px;top:calc(var(--safe-t) + 12px);z-index:500;display:flex;gap:8px;align-items:flex-start;justify-content:space-between;pointer-events:none}
+.map-top>*{pointer-events:auto}
+.seg{display:inline-flex;background:var(--surface);border-radius:999px;padding:4px;box-shadow:0 1px 0 var(--line),0 4px 14px rgba(0,0,0,.12)}
+.seg button{min-height:44px;padding:0 16px;border-radius:999px;font-weight:600;color:var(--ink2);display:flex;align-items:center;gap:6px}
+.seg button[aria-checked="true"]{background:var(--ink);color:var(--surface)}
+.seg.wide{display:flex;box-shadow:none;background:var(--surface2);border:1px solid var(--line)}
+.seg.wide button{flex:1;justify-content:center;min-height:48px}
+.gps{display:inline-flex;align-items:center;gap:7px;background:var(--surface);border-radius:999px;padding:0 14px;height:44px;font-weight:600;font-size:15px;box-shadow:0 1px 0 var(--line),0 4px 14px rgba(0,0,0,.12);white-space:nowrap}
+.gps i{width:10px;height:10px;border-radius:50%;background:var(--muted)}
+.gps.good i{background:var(--good)} .gps.ok i{background:var(--walk)} .gps.bad i{background:var(--danger)}
+.mapbtn{position:absolute;right:12px;bottom:12px;z-index:500;width:52px;height:52px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 0 var(--line),0 4px 14px rgba(0,0,0,.15)}
+.mapbtn.on{color:var(--accent)}
+.live{flex:none;background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;margin-top:-18px;position:relative;z-index:600;padding:14px 18px 6px;box-shadow:0 -6px 20px rgba(0,0,0,.08)}
+.hero{display:flex;align-items:baseline;gap:8px;line-height:.86}
+.hero .big{font-family:var(--cond);font-weight:700;font-size:clamp(84px,27vw,132px);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.hero .unit{font-family:var(--cond);font-size:28px;font-weight:600;color:var(--ink2)}
+.hero .state{margin-left:auto;align-self:center;font-weight:600;font-size:15px;color:var(--muted)}
+.hero .state.rec{color:var(--danger)}
+.lgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:10px}
+.lgrid.three{grid-template-columns:1fr 1fr 1fr;margin-top:6px;padding-top:8px;border-top:1px solid var(--line)}
+.m b{display:block;font-family:var(--cond);font-weight:600;font-size:44px;line-height:1;font-variant-numeric:tabular-nums}
+.lgrid.three .m b{font-size:30px}
+.m small{display:block;color:var(--muted);font-size:14px;font-weight:500;margin-top:2px}
+.controls{flex:none;background:var(--surface);padding:10px 18px 16px;display:flex;gap:12px;justify-content:center;align-items:center;min-height:120px}
+.start{width:104px;height:104px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-family:var(--cond);font-size:30px;font-weight:700;box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 45%,transparent)}
+.start:active,.pill:active{transform:scale(.97)}
+.pill{flex:1;max-width:260px;height:84px;border-radius:42px;font-family:var(--cond);font-size:28px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px}
+.pill svg.i{width:28px;height:28px}
+.pill.dark{background:var(--ink);color:var(--surface)}
+.pill.acc{background:var(--accent);color:var(--on-accent)}
+.pill.line{background:var(--surface2);border:2px solid var(--line)}
+.lockbtn{width:64px;height:84px;border-radius:32px;background:var(--surface2);border:2px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none}
+.hold{position:relative;overflow:hidden}
+.hold .fill{position:absolute;inset:0;background:var(--accent);transform-origin:left;transform:scaleX(0);opacity:.35}
+.hold.pressing .fill{transform:scaleX(1);transition:transform 1s linear}
+.hint{color:var(--muted);font-size:14px;text-align:center}
+.banner{margin:0 0 8px;padding:10px 12px;border-radius:var(--r-sm);background:var(--surface2);border:1px solid var(--line);font-size:14px;color:var(--ink2)}
+
+/* ---------- lists & cards ---------- */
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none}
+.chips button{min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid var(--line);font-weight:600;color:var(--ink2);white-space:nowrap;background:var(--surface)}
+.chips button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--surface)}
+.iconbtn{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--surface);border:1.5px solid var(--line);flex:none}
+.group{margin:18px 0 6px;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.group h2{font-size:18px}
+.group span{color:var(--muted);font-size:14px}
+.act{display:flex;gap:14px;align-items:center;width:100%;text-align:left;background:var(--surface);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;min-height:84px;border:1px solid var(--line)}
+.glyph{width:60px;height:60px;flex:none;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center}
+.glyph svg{width:46px;height:46px;overflow:visible}
+.act .tx{flex:1;min-width:0}
+.act .nm{font-weight:600;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.act .dt{color:var(--muted);font-size:14px}
+.act .st{display:flex;gap:14px;margin-top:3px;font-family:var(--cond);font-size:21px;font-weight:600;font-variant-numeric:tabular-nums}
+.act .st small{font-family:var(--body);font-size:13px;color:var(--muted);font-weight:500;margin-left:2px}
+.tdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.empty{text-align:center;padding:48px 12px;color:var(--ink2)}
+.empty h2{font-family:var(--cond);font-size:26px;margin-bottom:6px;color:var(--ink)}
+.btn{min-height:52px;padding:0 20px;border-radius:999px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:1.5px solid var(--line)}
+.btn.primary{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.btn.acc{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.danger{color:var(--danger)}
+.btn.danger.solid{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.block{width:100%}
+.btn:disabled{opacity:.5}
+
+/* ---------- cards / settings ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:12px}
+.card h3{font-size:17px;margin-bottom:8px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:4px 0}
+.row+.row{border-top:1px solid var(--line)}
+.row .lbl{font-weight:500}
+.row .sub{display:block;color:var(--muted);font-size:14px;font-weight:400}
+.switch{width:60px;height:36px;border-radius:18px;background:var(--line);position:relative;flex:none;transition:background .15s}
+.switch::after{content:"";position:absolute;top:4px;left:4px;width:28px;height:28px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.switch[aria-checked="true"]{background:var(--good)}
+.switch[aria-checked="true"]::after{transform:translateX(24px)}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+.btnrow .btn{flex:1;min-width:140px}
+.note{color:var(--muted);font-size:14px;margin:8px 0 0}
+.syncline{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink2);margin:4px 0 8px}
+.syncline i{width:10px;height:10px;border-radius:50%;background:var(--muted);flex:none}
+.syncline.synced i{background:var(--good)} .syncline.syncing i{background:var(--walk)} .syncline.error i{background:var(--danger)}
+
+/* ---------- stats ---------- */
+.tot{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.tot .card{margin:0;padding:12px}
+.tot b{display:block;font-family:var(--cond);font-size:32px;font-weight:700;line-height:1.05;font-variant-numeric:tabular-nums}
+.tot b small{font-size:16px;color:var(--ink2);font-weight:600;margin-left:2px}
+.tot span{display:block;font-size:13px;color:var(--muted)}
+.tot .t{font-weight:600;color:var(--ink);font-size:14px;margin-bottom:4px}
+.pbs{width:100%;border-collapse:collapse}
+.pbs td{padding:10px 0;border-top:1px solid var(--line);vertical-align:middle}
+.pbs tr:first-child td{border-top:0}
+.pbs .v{font-family:var(--cond);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.pbs .d{color:var(--muted);font-size:13px;text-align:right}
+.pbs button{text-align:left;width:100%;min-height:44px}
+
+/* ---------- charts ---------- */
+.chart{position:relative;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.chart svg{display:block;width:100%;overflow:visible}
+.chart .grid line{stroke:var(--line);stroke-width:1}
+.chart text{fill:var(--muted);font-size:12px;font-family:var(--body)}
+.chart .xh{stroke:var(--ink2);stroke-width:1;stroke-dasharray:3 3}
+.tip{position:absolute;top:0;transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:5px 9px;border-radius:8px;font-size:13px;font-weight:600;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}
+.chead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+.chead h3{margin:0}
+.minichips{display:flex;gap:6px}
+.minichips button{min-height:36px;padding:0 12px;border-radius:999px;border:1.5px solid var(--line);font-size:14px;font-weight:600;color:var(--ink2)}
+.minichips button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+
+/* ---------- detail page ---------- */
+.page{position:fixed;inset:0;z-index:1000;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.ptop{position:sticky;top:0;z-index:700;display:flex;align-items:center;gap:8px;padding:calc(var(--safe-t) + 8px) 10px 8px;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px)}
+.ptop .ttl{flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dmap{height:44vh;min-height:240px;position:relative;background:var(--surface2)}
+.dhead{padding:16px 16px 4px;max-width:640px;margin:0 auto}
+.dhead h1{font-family:var(--cond);font-size:34px;letter-spacing:.005em}
+.dhead p{margin:2px 0 0;color:var(--muted)}
+.dbody{padding:8px 16px 40px;max-width:640px;margin:0 auto}
+.sgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 10px;margin:8px 0 16px}
+.sgrid .m b{font-size:32px}
+.sgrid .m.k b{font-size:44px}
+.splits{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.splits th{font-size:13px;color:var(--muted);font-weight:500;text-align:left;padding:0 0 6px}
+.splits td{padding:7px 0;border-top:1px solid var(--line);font-family:var(--cond);font-size:20px;font-weight:600}
+.splits td.bar{width:42%;padding-left:10px}
+.splits .b{height:10px;border-radius:0 5px 5px 0;background:var(--accent)}
+.splits td.e{color:var(--ink2);text-align:right;width:20%}
+.splits tr.part td{color:var(--muted)}
+.notes{white-space:pre-wrap}
+
+/* ---------- sheets / gate / toast ---------- */
+#sheet-wrap{position:fixed;inset:0;z-index:2000;display:flex;align-items:flex-end;justify-content:center}
+.scrim{position:absolute;inset:0;background:var(--scrim)}
+.sheet{position:relative;width:100%;max-width:560px;background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:20px 18px calc(18px + var(--safe-b));max-height:92vh;overflow-y:auto;animation:up .2s ease-out}
+@keyframes up{from{transform:translateY(30px);opacity:.6}}
+.sheet h2{font-family:var(--cond);font-size:30px;margin-bottom:12px}
+.sheet .stack{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+label.f{display:block;font-weight:600;font-size:15px;margin:12px 0 6px}
+input.t,textarea.t{width:100%;min-height:52px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface2);padding:12px 14px;font-size:17px}
+textarea.t{min-height:90px;resize:vertical}
+.summary{display:flex;gap:18px;font-family:var(--cond);font-size:26px;font-weight:600;margin-bottom:4px;font-variant-numeric:tabular-nums}
+.summary small{font-family:var(--body);font-size:13px;color:var(--muted);font-weight:500;display:block}
+#gate{position:fixed;inset:0;z-index:3000;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px calc(32px + var(--safe-b));text-align:center;overflow:hidden}
+#gate .contours{position:absolute;inset:0;width:100%;height:100%;opacity:.55;pointer-events:none}
+#gate .inner{position:relative;max-width:380px;width:100%}
+#gate img{width:96px;height:96px;border-radius:22px}
+#gate h1{font-family:var(--cond);font-size:56px;margin:14px 0 6px}
+#gate p{color:var(--ink2);margin:0 0 26px}
+#gate .btn{width:100%;margin-bottom:10px;min-height:58px;font-size:18px}
+#gate .msg{color:var(--danger);min-height:1.4em;font-size:15px}
+#toast{position:fixed;left:50%;bottom:calc(var(--tabh) + var(--safe-b) + 14px);transform:translateX(-50%);z-index:4000;background:var(--ink);color:var(--surface);padding:12px 18px;border-radius:14px;font-weight:500;max-width:min(92vw,480px);box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.show{opacity:1}
+
+/* ---------- map styling ---------- */
+.leaflet-container{background:var(--surface2);font-family:var(--body)}
+:root[data-theme="dark"] .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.9) saturate(.7)}
+.leaflet-control-attribution{font-size:11px}
+:root[data-theme="dark"] .leaflet-control-attribution{background:rgba(24,32,39,.8)!important;color:var(--ink2)}
+:root[data-theme="dark"] .leaflet-control-attribution a{color:var(--ink2)}
+.me-dot{width:22px;height:22px;border-radius:50%;background:var(--accent);border:4px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.4)}
+.pin{width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.pin.s{background:var(--good)} .pin.e{background:var(--ink)}
+.scrub{width:18px;height:18px;border-radius:50%;background:#fff;border:4px solid var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.4)}
+
+@media (min-height:760px){ .m b{font-size:48px} }
+@media (max-height:680px){ .hero .big{font-size:76px} .m b{font-size:36px} .lgrid.three .m b{font-size:26px} .controls{min-height:100px;padding-bottom:10px} .start{width:88px;height:88px} .pill{height:72px} .lockbtn{height:72px} }
+@media (prefers-reduced-motion:reduce){ *{animation:none!important;transition:none!important} }
+</style>
+</head>
+<body data-type="run">
+<div id="app">
+  <main id="views">
+    <section id="v-record" class="view" aria-label="Record">
+      <div class="map-wrap">
+        <div id="rec-map" class="map"></div>
+        <div class="map-top">
+          <div class="seg" id="type-pick" role="radiogroup" aria-label="Activity type"></div>
+          <div class="gps" id="gps-chip"><i></i><span>GPS</span></div>
+        </div>
+        <button class="mapbtn" id="recenter" aria-label="Keep map centred on me"></button>
+      </div>
+      <div class="live" id="live">
+        <div id="live-banner"></div>
+        <div class="hero"><span class="big" id="l-dist">0.00</span><span class="unit" id="l-dunit">km</span><span class="state" id="l-state"></span></div>
+        <div class="lgrid">
+          <div class="m"><b id="l-time" class="num">0:00</b><small>Time</small></div>
+          <div class="m"><b id="l-pace" class="num">–:––</b><small id="l-pace-l">Pace</small></div>
+        </div>
+        <div class="lgrid three">
+          <div class="m"><b id="l-avg" class="num">–:––</b><small id="l-avg-l">Avg pace</small></div>
+          <div class="m"><b id="l-gain" class="num">0</b><small id="l-gain-l">Climb</small></div>
+          <div class="m"><b id="l-ele" class="num">–</b><small id="l-ele-l">Elevation</small></div>
+        </div>
+      </div>
+      <div class="controls" id="controls"></div>
+    </section>
+    <section id="v-list" class="view" aria-label="Activities" hidden></section>
+    <section id="v-stats" class="view" aria-label="Stats" hidden></section>
+    <section id="v-you" class="view" aria-label="You" hidden></section>
+  </main>
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+</div>
+
+<section id="detail" class="page" hidden aria-label="Activity"></section>
+<div id="sheet-wrap" hidden><div class="scrim" data-act="close-sheet"></div><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+
+<div id="gate" hidden>
+  <svg class="contours" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke="var(--line)" stroke-width="1.5">
+      <path d="M-20 120 C80 60 160 170 260 110 S380 60 430 120"/><path d="M-20 160 C90 100 170 210 270 150 S390 100 430 165"/>
+      <path d="M-20 205 C100 150 180 255 280 195 S400 150 430 210"/><path d="M-20 600 C60 560 150 650 240 610 S360 560 430 610"/>
+      <path d="M-20 645 C70 600 160 700 250 655 S370 605 430 655"/><path d="M-20 690 C80 650 170 745 260 700 S380 650 430 700"/>
+      <path d="M-20 735 C90 700 180 790 270 745 S390 700 430 745"/>
+    </g>
+  </svg>
+  <div class="inner">
+    <img src="icons/icon-192.png" alt="">
+    <h1>Stride</h1>
+    <p>Record runs, rides and walks. Sign in with Google to back them up and see them on all your devices.</p>
+    <button class="btn primary" data-act="signin">Sign in with Google</button>
+    <button class="btn" data-act="gate-skip">Not now</button>
+    <div class="msg" id="gate-msg"></div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="file-gpx" accept=".gpx,application/gpx+xml,application/xml,text/xml" hidden>
+<input type="file" id="file-backup" accept=".json,application/json" hidden>
+
+<script type="module">
+'use strict';
+const VERSION = '1.0.0';
+const APP = 'stride';                         // also the Firestore collection: users/{uid}/stride/…
+const LS = 'stride:v1', LIVE = 'stride:live', DIRTY_LS = 'stride:unsynced', TRK = id => 'stride:trk:' + id;
+
+/* ---------- helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const clone = o => JSON.parse(JSON.stringify(o));
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const now = () => Date.now();
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+const I = {
+  rec:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>',
+  list:'<svg class="i" viewBox="0 0 24 24"><path d="M4 18c3-1 4-5 7-6s5 2 9-2"/><circle cx="4" cy="18" r="1.5" fill="currentColor"/><circle cx="20" cy="10" r="1.5" fill="currentColor"/><path d="M4 6h7"/></svg>',
+  stats:'<svg class="i" viewBox="0 0 24 24"><path d="M5 20V12M10 20V6M15 20v-9M20 20V9"/></svg>',
+  you:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>',
+  back:'<svg class="i" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
+  pause:'<svg class="i" viewBox="0 0 24 24"><path d="M9 5v14M15 5v14" stroke-width="3"/></svg>',
+  play:'<svg class="i" viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z" fill="currentColor"/></svg>',
+  stop:'<svg class="i" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>',
+  lock:'<svg class="i" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+  unlock:'<svg class="i" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>',
+  locate:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>',
+  upload:'<svg class="i" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>',
+  edit:'<svg class="i" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
+  trash:'<svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  down:'<svg class="i" viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>',
+};
+
+/* ---------- activity types & units ---------- */
+const TYPES = {
+  run:  { name:'Run',  pace:true,  maxV:12, moveV:0.8 },
+  ride: { name:'Ride', pace:false, maxV:35, moveV:1.5 },
+  walk: { name:'Walk', pace:true,  maxV:6,  moveV:0.4 },
+};
+const BESTS = {
+  run:  [[1000,'1 km'],[1609.344,'1 mile'],[5000,'5 km'],[10000,'10 km'],[21097.5,'Half marathon'],[42195,'Marathon']],
+  walk: [[1000,'1 km'],[5000,'5 km'],[10000,'10 km']],
+  ride: [[10000,'10 km'],[20000,'20 km'],[40000,'40 km'],[100000,'100 km']],
+};
+const U = () => S.settings.units === 'mi'
+  ? { d:1609.344, dl:'mi', dn:'mile', e:0.3048, el:'ft', sp:'mph', sps:2.2369363 }
+  : { d:1000, dl:'km', dn:'kilometre', e:1, el:'m', sp:'km/h', sps:3.6 };
+const fmtDist = (m, dp) => { const v = (m || 0) / U().d; return v.toFixed(dp ?? (v < 100 ? 2 : 1)); };
+const fmtDur = s => {
+  s = Math.max(0, Math.round(s || 0)); const h = Math.floor(s / 3600), mi = Math.floor(s % 3600 / 60), se = s % 60;
+  return h ? `${h}:${String(mi).padStart(2,'0')}:${String(se).padStart(2,'0')}` : `${mi}:${String(se).padStart(2,'0')}`;
+};
+const paceOf = (m, s) => (m > 0 && s > 0) ? s / (m / U().d) : Infinity;   // seconds per km/mi
+const fmtPace = p => (!isFinite(p) || p <= 0 || p > 5999) ? '–:––' : fmtDur(p);
+const fmtSpeed = mps => (isFinite(mps) && mps > 0) ? (mps * U().sps).toFixed(1) : '0.0';
+const fmtEle = m => (m == null || !isFinite(m)) ? '–' : String(Math.round(m / U().e));
+const DF = new Intl.DateTimeFormat('en-GB', { weekday:'short', day:'numeric', month:'short' });
+const DFY = new Intl.DateTimeFormat('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+const TF = new Intl.DateTimeFormat('en-GB', { hour:'2-digit', minute:'2-digit' });
+const MF = new Intl.DateTimeFormat('en-GB', { month:'long', year:'numeric' });
+const fmtWhen = t => { const d = new Date(t); return (d.getFullYear() === new Date().getFullYear() ? DF : DFY).format(d) + ', ' + TF.format(d); };
+const defaultName = (type, t) => {
+  const h = new Date(t).getHours();
+  const part = h < 5 ? 'Night' : h < 12 ? 'Morning' : h < 14 ? 'Lunchtime' : h < 18 ? 'Afternoon' : h < 22 ? 'Evening' : 'Night';
+  return `${part} ${TYPES[type].name.toLowerCase()}`;
+};
+
+/* ---------- geometry & compact track encoding ---------- */
+const RAD = Math.PI / 180, R_EARTH = 6371008.8;
+function hav(a, b){
+  const dLat = (b[0] - a[0]) * RAD, dLng = (b[1] - a[1]) * RAD;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * RAD) * Math.cos(b[0] * RAD) * Math.sin(dLng / 2) ** 2;
+  return 2 * R_EARTH * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+// Polyline-style varint encoding of integer deltas (characters 63–126, so ";" etc. never appear).
+function encNum(v){ v = v < 0 ? ~(v * 2) : v * 2; let s = ''; while (v >= 0x20){ s += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v = Math.floor(v / 32); } return s + String.fromCharCode(v + 63); }
+function decNums(str){
+  const out = []; let i = 0;
+  while (i < str.length){ let b, shift = 0, res = 0; do { b = str.charCodeAt(i++) - 63; res += (b & 0x1f) * 2 ** shift; shift += 5; } while (b >= 0x20); out.push(res % 2 ? -(res + 1) / 2 : res / 2); }
+  return out;
+}
+// Points are [lat, lng, ele|null, timeMs]. Stored as 1e-6° positions, 0.1 m elevation, 0.1 s time.
+function encodeTrack(segs, t0, dur){
+  const hasEle = segs.some(s => s.some(p => p[2] != null));
+  let lastEle = null; for (const s of segs) for (const p of s) if (p[2] != null){ lastEle = p[2]; break; }
+  const out = segs.filter(s => s.length).map(s => {
+    let prev = [0,0,0,0], str = '';
+    for (const p of s){
+      if (p[2] != null) lastEle = p[2];
+      const v = [Math.round(p[0] * 1e6), Math.round(p[1] * 1e6), hasEle ? Math.round((lastEle ?? 0) * 10) : 0, Math.round((p[3] - t0) / 100)];
+      for (let k = 0; k < 4; k++){ if (k === 2 && !hasEle) continue; str += encNum(v[k] - prev[k]); }
+      prev = v;
+    }
+    return str;
+  });
+  return { v:1, t0, ele:hasEle, segs:out, dem:null, rev:1, ...(dur ? { dur } : {}) };
+}
+function decodeTrack(trk){
+  if (!trk || !Array.isArray(trk.segs)) return [];
+  const dims = trk.ele ? 4 : 3;
+  return trk.segs.map(str => {
+    const n = decNums(str), pts = []; let a = 0, b = 0, e = 0, t = 0;
+    for (let i = 0; i + dims <= n.length; i += dims){
+      a += n[i]; b += n[i + 1];
+      if (trk.ele){ e += n[i + 2]; t += n[i + 3]; } else t += n[i + 2];
+      pts.push([a / 1e6, b / 1e6, trk.ele ? e / 10 : null, trk.t0 + t * 100]);
+    }
+    return pts;
+  });
+}
+const encFlat = arr => { let p = 0, s = ''; for (const v of arr){ const q = Math.round(v * 10); s += encNum(q - p); p = q; } return s; };
+const decFlat = s => { let p = 0; return decNums(s || '').map(d => (p += d) / 10); };
+// Small route outline for list thumbnails: ~48 points, 1e-5° precision.
+function previewOf(segs){
+  const pts = segs.flat(); if (pts.length < 2) return '';
+  let tot = 0; const cum = [0]; for (let i = 1; i < pts.length; i++){ tot += hav(pts[i-1], pts[i]); cum.push(tot); }
+  const N = 48, keep = [pts[0]]; let j = 0;
+  for (let k = 1; k < N; k++){ const tgt = tot * k / (N - 1); while (j < pts.length - 1 && cum[j] < tgt) j++; keep.push(pts[j]); }
+  let pa = 0, pb = 0, s = '';
+  for (const p of keep){ const a = Math.round(p[0] * 1e5), b = Math.round(p[1] * 1e5); s += encNum(a - pa) + encNum(b - pb); pa = a; pb = b; }
+  return s;
+}
+function decodePreview(s){ const n = decNums(s || ''), out = []; let a = 0, b = 0; for (let i = 0; i + 1 < n.length; i += 2){ a += n[i]; b += n[i+1]; out.push([a / 1e5, b / 1e5]); } return out; }
+
+/* ---------- analysis ---------- */
+function smooth(arr, half){
+  const n = arr.length, out = new Array(n);
+  for (let i = 0; i < n; i++){ let s = 0, c = 0; for (let j = Math.max(0, i - half); j <= Math.min(n - 1, i + half); j++){ if (arr[j] != null){ s += arr[j]; c++; } } out[i] = c ? s / c : null; }
+  return out;
+}
+function climb(e, th){
+  let gain = 0, loss = 0, ref = null;
+  for (const v of e){ if (v == null) continue; if (ref == null){ ref = v; continue; } if (v - ref >= th){ gain += v - ref; ref = v; } else if (ref - v >= th){ loss += ref - v; ref = v; } }
+  return { gain, loss };
+}
+// segs: arrays of points; eles: optional flat elevation array (terrain data) matching every point.
+function analyze(segs, type, eles, durOverride){
+  const pts = [], first = new Set();
+  segs.forEach(s => { if (s.length){ first.add(pts.length); s.forEach(p => pts.push(p)); } });
+  const n = pts.length, cumD = new Float64Array(n), cumT = new Float64Array(n);
+  let moving = 0; const thr = TYPES[type].moveV;
+  for (let i = 1; i < n; i++){
+    let d = 0, dt = 0;
+    if (!first.has(i)){ d = hav(pts[i-1], pts[i]); dt = Math.max(0, (pts[i][3] - pts[i-1][3]) / 1000); }
+    cumD[i] = cumD[i-1] + d; cumT[i] = cumT[i-1] + dt;
+    if (dt > 0 && d / dt >= thr) moving += dt;
+  }
+  const dist = n ? cumD[n-1] : 0, time = durOverride || (n ? cumT[n-1] : 0);
+  // smoothed speed over a ~10 s window, for charts and max speed
+  const spd = new Array(n).fill(0); let j = 0, maxSpeed = 0;
+  for (let i = 1; i < n; i++){
+    while (j < i && cumT[i] - cumT[j] > 10) j++;
+    const k = (j === i) ? i - 1 : j, dt = cumT[i] - cumT[k];
+    spd[i] = dt > 0 ? (cumD[i] - cumD[k]) / dt : spd[i-1];
+    if (cumT[i] - cumT[k] >= 5 && spd[i] < TYPES[type].maxV) maxSpeed = Math.max(maxSpeed, spd[i]);
+  }
+  if (n > 1) spd[0] = spd[1];
+  // elevation: terrain data is already clean; GPS altitude needs smoothing and a bigger threshold
+  let ele = null, src = null;
+  if (eles && eles.length === n){ ele = smooth(eles, 1); src = 'dem'; }
+  else if (pts.some(p => p[2] != null)){ ele = smooth(pts.map(p => p[2]), 4); src = 'gps'; }
+  const cl = ele ? climb(ele, src === 'dem' ? 2 : 4) : { gain:0, loss:0 };
+  let eleMin = null, eleMax = null;
+  if (ele) for (const v of ele) if (v != null){ eleMin = eleMin == null ? v : Math.min(eleMin, v); eleMax = eleMax == null ? v : Math.max(eleMax, v); }
+  // best efforts: fastest time over each standard distance
+  const best = {};
+  for (const [D] of BESTS[type]){
+    if (dist < D) continue;
+    let a = 0, bt = Infinity;
+    for (let i = 1; i < n; i++){
+      if (cumD[i] < D) continue;
+      while (a + 1 < i && cumD[i] - cumD[a + 1] >= D) a++;
+      const s0 = cumD[i] - D, seg = cumD[a+1] - cumD[a];
+      const tStart = seg > 0 ? cumT[a] + (s0 - cumD[a]) / seg * (cumT[a+1] - cumT[a]) : cumT[a];
+      bt = Math.min(bt, cumT[i] - tStart);
+    }
+    if (isFinite(bt) && bt > 0) best[D] = Math.round(bt);
+  }
+  return { pts, cumD, cumT, spd, ele, src, n,
+    stats:{ dist:Math.round(dist), time:Math.round(time), moving:Math.round(Math.min(moving, time) || time), gain:Math.round(cl.gain), loss:Math.round(cl.loss),
+      eleMin:eleMin == null ? null : Math.round(eleMin), eleMax:eleMax == null ? null : Math.round(eleMax), maxSpeed:+maxSpeed.toFixed(2), best, eleSrc:src } };
+}
+function splitsOf(A){
+  const u = U().d, out = []; if (!A || A.n < 2) return out;
+  const { cumD, cumT, ele, n } = A; let k = 1, i0 = 0, tPrev = 0, ePrev = ele ? ele[0] : null;
+  for (let i = 1; i < n && k <= 999; i++){
+    while (cumD[i] >= k * u){
+      const f = (k * u - cumD[i-1]) / Math.max(1e-9, cumD[i] - cumD[i-1]);
+      const t = cumT[i-1] + f * (cumT[i] - cumT[i-1]);
+      const e = ele && ele[i] != null && ele[i-1] != null ? ele[i-1] + f * (ele[i] - ele[i-1]) : null;
+      out.push({ d:u, t:t - tPrev, de:(e != null && ePrev != null) ? e - ePrev : null });
+      tPrev = t; ePrev = e; k++; i0 = i;
+    }
+  }
+  const rest = cumD[n-1] - (k - 1) * u;
+  if (rest > u * 0.05) out.push({ d:rest, t:cumT[n-1] - tPrev, de:(ele && ele[n-1] != null && ePrev != null) ? ele[n-1] - ePrev : null, part:true });
+  return out;
+}
+
+/* ---------- state & local storage ---------- */
+const DEFAULT_SETTINGS = { units:'km', theme:'auto', map:'streets', voice:true, keepAwake:true, terrain:true, defType:'run' };
+const S = { acts:{}, settings:{ ...DEFAULT_SETTINGS }, settingsAt:0, tab:'record', filter:'all', sfilter:'all', detail:null, sync:'local', syncMsg:null, account:null };
+try {
+  const d = JSON.parse(localStorage.getItem(LS) || 'null');
+  if (d){ S.acts = d.acts || {}; S.settings = { ...DEFAULT_SETTINGS, ...(d.settings || {}) }; S.settingsAt = d.settingsAt || 0; }
+} catch(e) {}
+S.recType = S.settings.defType in TYPES ? S.settings.defType : 'run';
+
+function lsSet(key, val){
+  for (let tries = 0; tries < 400; tries++){
+    try { localStorage.setItem(key, val); return true; }
+    catch(e){ if (!evictOneTrack(key)) break; }
+  }
+  return false;
+}
+let warnedFull = false;
+function saveLocal(){
+  const ok = lsSet(LS, JSON.stringify({ acts:S.acts, settings:S.settings, settingsAt:S.settingsAt }));
+  if (!ok && !warnedFull){ warnedFull = true; toast('This phone’s storage for the app is full. Save a backup, then delete some old activities.', 6000); }
+  return ok;
+}
+// Routes already safe in the cloud can be dropped from the phone (oldest first) and fetched again when opened.
+function evictOneTrack(keepKey){
+  const list = Object.values(S.acts).filter(a => !a.deleted && TRK(a.id) !== keepKey && !store.dirty.has('t_' + a.id) && localStorage.getItem(TRK(a.id)) != null).sort((a, b) => a.start - b.start);
+  if (!list.length) return false;
+  localStorage.removeItem(TRK(list[0].id)); trackCache.delete(list[0].id); return true;
+}
+const trackCache = new Map();
+function getTrack(id){
+  if (trackCache.has(id)) return trackCache.get(id);
+  try { const t = JSON.parse(localStorage.getItem(TRK(id)) || 'null'); if (t) trackCache.set(id, t); return t; } catch(e){ return null; }
+}
+function putTrack(id, trk){ trackCache.set(id, trk); return lsSet(TRK(id), JSON.stringify(trk)); }
+function dropTrack(id){ trackCache.delete(id); localStorage.removeItem(TRK(id)); }
+const liveActs = () => Object.values(S.acts).filter(a => !a.deleted).sort((a, b) => b.start - a.start);
+
+function setSetting(k, v){
+  S.settings[k] = v; S.settingsAt = now(); saveLocal(); markDirty('settings');
+  applyTheme(); render();
+}
+
+/* ---------- cloud sync (Firebase, loaded on demand) ---------- */
+// These web config values are public by design; Firestore rules restrict each person to users/<their uid>.
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAON87NZuiIOuxdYzWGpNxvi_gXMzN2DxY",
+  authDomain: "habits-d14c3.firebaseapp.com",
+  projectId: "habits-d14c3",
+  storageBucket: "habits-d14c3.firebasestorage.app",
+  messagingSenderId: "617502759277",
+  appId: "1:617502759277:web:383cc66a3d7d07a506e264"
+};
+const FB_URL = 'https://www.gstatic.com/firebasejs/10.12.2/';
+const store = { m:null, auth:null, db:null, user:null, unsubA:null, unsubS:null, ready:false, first:{}, ver:{}, dirty:new Set(), pumping:false, timer:null, authKnown:false, failed:false };
+try { (JSON.parse(localStorage.getItem(DIRTY_LS)) || []).forEach(id => store.dirty.add(id)); } catch(e) {}
+const saveDirty = () => { try { localStorage.setItem(DIRTY_LS, JSON.stringify([...store.dirty])); } catch(e) {} };
+
+// Every change is already saved on the phone; mark it unsynced until the cloud confirms it.
+function markDirty(id){
+  store.dirty.add(id); saveDirty();
+  store.ver[id] = (store.ver[id] || 0) + 1;
+  schedulePump();
+}
+function schedulePump(ms = 600){
+  if (!store.user || !store.ready) return;
+  setSync('syncing');
+  clearTimeout(store.timer); store.timer = setTimeout(pump, ms);
+}
+const colRef = () => store.m.collection(store.db, 'users', store.user.uid, APP);
+const docRef = id => store.m.doc(store.db, 'users', store.user.uid, APP, id);
+const order = id => id.startsWith('t_') ? 0 : id.startsWith('a_') ? 1 : 2;   // routes go up before the activity that points at them
+async function writeDoc(id){
+  if (id === 'settings') return store.m.setDoc(docRef('settings'), { k:'s', ...clone(S.settings), updatedAt:S.settingsAt || now() });
+  const aid = id.slice(2), a = S.acts[aid];
+  if (id.startsWith('a_')){ if (!a) return; return store.m.setDoc(docRef(id), { k:'a', ...clone(a) }); }
+  if (id.startsWith('t_')){
+    if (!a || a.deleted) return store.m.deleteDoc(docRef(id));
+    let trk = getTrack(aid); if (!trk) return;
+    trk = fitForCloud(trk);
+    return store.m.setDoc(docRef(id), { k:'t', ...trk });
+  }
+}
+// Firestore documents max out at 1 MiB; very long routes are thinned (every other point) until they fit.
+function fitForCloud(trk){
+  let t = trk, guard = 0;
+  while (JSON.stringify(t).length > 900000 && guard++ < 6){
+    const segs = decodeTrack(t).map(s => s.filter((p, i) => i % 2 === 0 || i === s.length - 1));
+    const dem = t.dem ? decFlat(t.dem) : null; let thinDem = null;
+    if (dem){ thinDem = []; let o = 0; decodeTrack(t).forEach(s => { s.forEach((p, i) => { if (i % 2 === 0 || i === s.length - 1) thinDem.push(dem[o + i]); }); o += s.length; }); }
+    t = { ...encodeTrack(segs, t.t0, t.dur), dem:thinDem ? encFlat(thinDem) : null, rev:t.rev };
+  }
+  return t;
+}
+async function pump(){
+  if (store.pumping){ store.again = true; return; }
+  store.pumping = true;
+  try {
+    while (store.user && store.ready){
+      const id = [...store.dirty].sort((a, b) => order(a) - order(b))[0];
+      if (!id) break;
+      const v = store.ver[id] || 0, who = store.user.uid;
+      setSync('syncing');
+      try { await writeDoc(id); }
+      catch(e){
+        setSync(navigator.onLine ? 'error' : 'offline', e && e.code === 'permission-denied' ? 'The cloud refused the save. Your activities are still on this phone.' : null);
+        clearTimeout(store.timer); store.timer = setTimeout(pump, 20000);
+        return;
+      }
+      if ((store.ver[id] || 0) === v && store.user && store.user.uid === who){ store.dirty.delete(id); saveDirty(); }
+    }
+    if (store.user && store.ready && !store.dirty.size) setSync('synced');
+  } finally {
+    store.pumping = false;
+    if (store.again){ store.again = false; schedulePump(50); }
+  }
+}
+function setSync(st, msg){ S.sync = st; S.syncMsg = msg || null; if (S.tab === 'you') renderYou(); }
+const stripK = o => { const c = { ...o }; delete c.k; return c; };
+
+// First contact with the cloud each time the app opens: combine both sides.
+// Unsynced changes on this phone win; anything only the cloud has is kept; anything only this phone has is uploaded.
+function mergeFirst(cloudActs, cloudSettings){
+  for (const c of cloudActs){
+    const id = c.id; if (!id) continue;
+    const l = S.acts[id];
+    if (store.dirty.has('a_' + id)) continue;
+    // nothing unsynced here for it, so the cloud's copy is the current one
+    if (l && (l.trackRev || 1) !== (c.trackRev || 1) && !store.dirty.has('t_' + id)) dropTrack(id);
+    if (c.deleted) dropTrack(id);
+    S.acts[id] = c;
+  }
+  const inCloud = new Set(cloudActs.map(c => c.id));
+  for (const a of Object.values(S.acts)){
+    if (inCloud.has(a.id)) continue;
+    if (!store.dirty.has('a_' + a.id)){ store.dirty.add('a_' + a.id); store.ver['a_' + a.id] = 1; }
+    if (!a.deleted && localStorage.getItem(TRK(a.id)) != null && !store.dirty.has('t_' + a.id)){ store.dirty.add('t_' + a.id); store.ver['t_' + a.id] = 1; }
+  }
+  if (cloudSettings && !store.dirty.has('settings')){
+    const { updatedAt, ...rest } = stripK(cloudSettings);
+    S.settings = { ...DEFAULT_SETTINGS, ...rest }; S.settingsAt = updatedAt || now();
+  } else if (!cloudSettings && !store.dirty.has('settings')){ store.dirty.add('settings'); store.ver.settings = 1; }
+  saveDirty();
+  store.ready = true;
+  saveLocal(); applyTheme(); render();
+  if (store.dirty.size) schedulePump(50); else setSync('synced');
+  prefetchTracks();
+}
+function onActsSnap(snap){
+  if (snap.metadata.fromCache && !store.ready){ setSync(navigator.onLine ? 'syncing' : 'offline'); return; }
+  const docs = snap.docs.map(d => ({ id:d.id, pending:d.metadata && d.metadata.hasPendingWrites, data:stripK(d.data() || {}) }));
+  if (!store.ready){ store.first.acts = docs.map(d => d.data); maybeFirstMerge(); return; }
+  let changed = false;
+  for (const d of docs){
+    const c = d.data, id = c.id; if (!id || d.pending || store.dirty.has('a_' + id)) continue;
+    const l = S.acts[id];
+    if (l && JSON.stringify(l) === JSON.stringify(c)) continue;
+    if (c.deleted || (l && (l.trackRev || 1) !== (c.trackRev || 1) && !store.dirty.has('t_' + id))) dropTrack(id);
+    S.acts[id] = c; changed = true;
+  }
+  if (changed){ saveLocal(); render(true); if (S.detail) renderDetail(true); }
+  if (!snap.metadata.fromCache && !store.dirty.size) setSync('synced');
+}
+function onSettingsSnap(snap){
+  if (snap.metadata.fromCache && !store.ready) return;
+  const data = snap.exists() ? snap.data() : null;
+  if (!store.ready){ store.first.settings = data; store.first.gotSettings = true; maybeFirstMerge(); return; }
+  if (!data || store.dirty.has('settings') || (snap.metadata && snap.metadata.hasPendingWrites)) return;
+  const { updatedAt, ...rest } = stripK(data);
+  if (JSON.stringify({ ...DEFAULT_SETTINGS, ...rest }) === JSON.stringify(S.settings)) return;
+  S.settings = { ...DEFAULT_SETTINGS, ...rest }; S.settingsAt = updatedAt; saveLocal(); applyTheme(); render(true);
+}
+function maybeFirstMerge(){ if (store.first.acts && store.first.gotSettings && !store.ready) mergeFirst(store.first.acts, store.first.settings); }
+async function fetchTrack(id){
+  if (!store.user || !store.m) return null;
+  try {
+    const snap = await store.m.getDoc(docRef('t_' + id));
+    if (!snap.exists()) return null;
+    const t = stripK(snap.data()); putTrack(id, t); return t;
+  } catch(e){ return null; }
+}
+async function prefetchTracks(){
+  const want = liveActs().slice(0, 12).filter(a => !getTrack(a.id) && a.stats && a.stats.dist > 0);
+  for (const a of want){ if (!store.user) return; await fetchTrack(a.id); }
+}
+
+let gateSkipped = false;
+function renderGate(){
+  const g = $('#gate');
+  g.hidden = !(store.authKnown && !store.user && !gateSkipped && !rec);
+  $('#gate-msg').textContent = S.signinMsg || '';
+}
+function setUser(u){
+  store.authKnown = true;
+  if (store.unsubA){ store.unsubA(); store.unsubA = null; }
+  if (store.unsubS){ store.unsubS(); store.unsubS = null; }
+  store.user = u || null; store.ready = false; store.first = {};
+  S.account = u ? { name:u.displayName || '', email:u.email || '' } : null;
+  renderGate();
+  if (!u){ setSync('local'); render(); return; }
+  setSync('syncing'); render();
+  const err = e => setSync('error', e && e.code === 'permission-denied' ? 'The cloud refused access. Check the Firestore rules, or sign out and in again.' : 'Couldn’t reach the cloud. Your activities are safe on this phone.');
+  store.unsubA = store.m.onSnapshot(store.m.query(colRef(), store.m.where('k', '==', 'a')), { includeMetadataChanges:true }, onActsSnap, err);
+  store.unsubS = store.m.onSnapshot(docRef('settings'), { includeMetadataChanges:true }, onSettingsSnap, err);
+}
+async function initCloud(){
+  try {
+    const [appM, authM, fsM] = await Promise.all(['app', 'auth', 'firestore'].map(n => import(FB_URL + 'firebase-' + n + '.js')));
+    store.m = { ...authM, ...fsM };
+    const app = appM.initializeApp(FIREBASE_CONFIG, 'stride');
+    store.auth = authM.getAuth(app);
+    store.db = fsM.initializeFirestore(app, { ignoreUndefinedProperties:true });
+    authM.getRedirectResult(store.auth).catch(() => { S.signinMsg = 'Sign-in didn’t finish. Try again.'; renderGate(); if (S.tab === 'you') renderYou(); });
+    authM.onAuthStateChanged(store.auth, setUser);
+  } catch(e){ store.failed = true; if (S.tab === 'you') renderYou(); }
+}
+async function signIn(){
+  if (!store.auth){ S.signinMsg = navigator.onLine ? 'Sign-in isn’t available right now. Try again in a moment.' : 'You’re offline. Sign in when you have a signal.'; renderGate(); if (S.tab === 'you') renderYou(); return; }
+  S.signinMsg = null; renderGate();
+  const provider = new store.m.GoogleAuthProvider();
+  provider.setCustomParameters({ prompt:'select_account' });
+  try { await store.m.signInWithPopup(store.auth, provider); }
+  catch(e){
+    const c = e && e.code;
+    if (c === 'auth/popup-blocked' || c === 'auth/operation-not-supported-in-this-environment' || c === 'auth/web-storage-unsupported'){
+      try { await store.m.signInWithRedirect(store.auth, provider); return; } catch(_) {}
+    }
+    if (c !== 'auth/popup-closed-by-user' && c !== 'auth/cancelled-popup-request'){ S.signinMsg = 'Sign-in didn’t work. Check your signal and try again.'; renderGate(); if (S.tab === 'you') renderYou(); }
+  }
+}
+async function signOut(){ if (store.auth) await store.m.signOut(store.auth).catch(() => {}); }
+window.addEventListener('online', () => { if (store.user && store.ready && store.dirty.size) schedulePump(100); });
+window.addEventListener('offline', () => { if (store.user && store.dirty.size) setSync('offline'); });
+
+/* ---------- saving activities ---------- */
+function touch(a){ a.updatedAt = now(); }
+function saveAct(a, trackChanged){
+  touch(a); S.acts[a.id] = a; saveLocal();
+  if (trackChanged) markDirty('t_' + a.id);
+  markDirty('a_' + a.id);
+}
+function deleteAct(id){
+  const a = S.acts[id]; if (!a) return;
+  S.acts[id] = { id, deleted:true, start:a.start, updatedAt:now() };
+  dropTrack(id); saveLocal(); markDirty('t_' + id); markDirty('a_' + id);
+}
+function eleArrFor(a, trk){ return (a.eleSrc !== 'gps' && trk && trk.dem) ? decFlat(trk.dem) : null; }
+function restat(a, trk){
+  const segs = decodeTrack(trk);
+  const A = analyze(segs, a.type, eleArrFor(a, trk), trk.dur);
+  a.stats = A.stats; a.pv = previewOf(segs);
+  return A;
+}
+
+/* ---------- terrain elevation (Open-Meteo, free, no key) ---------- */
+async function fetchTerrain(segs){
+  const pts = segs.flat(); if (pts.length < 2) return null;
+  const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i-1] + hav(pts[i-1], pts[i]));
+  const total = cum[cum.length - 1], step = Math.max(25, total / 900);
+  const idx = [0]; for (let i = 1; i < pts.length - 1; i++) if (cum[i] - cum[idx[idx.length - 1]] >= step) idx.push(i);
+  idx.push(pts.length - 1);
+  const elev = [];
+  for (let b = 0; b < idx.length; b += 100){
+    const chunk = idx.slice(b, b + 100);
+    const url = 'https://api.open-meteo.com/v1/elevation?latitude=' + chunk.map(i => pts[i][0].toFixed(5)).join(',') + '&longitude=' + chunk.map(i => pts[i][1].toFixed(5)).join(',');
+    const res = await fetch(url); if (!res.ok) throw new Error('elevation ' + res.status);
+    const j = await res.json(); if (!Array.isArray(j.elevation) || j.elevation.length !== chunk.length) throw new Error('elevation shape');
+    elev.push(...j.elevation);
+  }
+  const out = new Array(pts.length); let k = 0;
+  for (let i = 0; i < pts.length; i++){
+    while (k < idx.length - 2 && idx[k + 1] <= i) k++;
+    const i0 = idx[k], i1 = idx[k + 1], span = cum[i1] - cum[i0];
+    const f = span > 0 ? (cum[i] - cum[i0]) / span : 0;
+    out[i] = Math.round((elev[k] + f * (elev[k + 1] - elev[k])) * 10) / 10;
+  }
+  return out;
+}
+async function addTerrain(id, quiet){
+  const a = S.acts[id], trk = a && getTrack(id); if (!a || !trk || trk.dem) return;
+  try {
+    const dem = await fetchTerrain(decodeTrack(trk)); if (!dem) return;
+    const cur = S.acts[id]; if (!cur || cur.deleted) return;
+    const t2 = { ...trk, dem:encFlat(dem), rev:(trk.rev || 1) + 1 };
+    putTrack(id, t2); cur.trackRev = t2.rev; cur.eleSrc = 'dem'; restat(cur, t2); saveAct(cur, true);
+    if (S.detail === id) renderDetail(); render();
+    if (!quiet) toast('Elevation updated from terrain data.');
+  } catch(e){ if (!quiet) toast('Couldn’t get terrain elevation. Check your signal and try again.'); }
+}
+
+/* ---------- live recording ---------- */
+let rec = null, watchId = null, fix = null, tick = null, wake = null, persistT = 0, follow = true, locked = false;
+function startWatch(){
+  if (watchId != null || !navigator.geolocation) return;
+  watchId = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy:true, maximumAge:0, timeout:30000 });
+}
+function stopWatch(){ if (watchId != null){ navigator.geolocation.clearWatch(watchId); watchId = null; } }
+function onPos(pos){
+  const c = pos.coords;
+  fix = { lat:c.latitude, lng:c.longitude, alt:(c.altitude == null || isNaN(c.altitude)) ? null : c.altitude, acc:c.accuracy || 999, t:now() };
+  S.gpsErr = null;
+  try { localStorage.setItem('stride:last', JSON.stringify([+fix.lat.toFixed(4), +fix.lng.toFixed(4)])); } catch(e) {}
+  if (rec && !rec.paused) addPoint(fix);
+  calibrate();
+  renderLive(); updateRecMap();
+  if (!rec && S.tab === 'record' && !$('#controls .start + .hint')?.textContent.startsWith('Keep')) renderControls();
+}
+function onPosErr(e){ S.gpsErr = e && e.code === 1 ? 'denied' : 'searching'; renderLive(); }
+const curSeg = () => rec.segs[rec.segs.length - 1];
+function addPoint(f){
+  if (f.acc > 50) return;                                 // too vague to use
+  const seg = curSeg(), last = seg[seg.length - 1];
+  const ele = f.alt == null ? null : Math.round((f.alt + (rec.off || 0)) * 10) / 10;
+  const p = [f.lat, f.lng, ele, f.t];
+  if (last){
+    const d = hav(last, p), dt = (p[3] - last[3]) / 1000;
+    if (dt <= 0.2) return;
+    if (d / dt > TYPES[rec.type].maxV && d > f.acc) return; // a jump the body couldn't make
+    if (d < Math.max(3, f.acc * 0.5) && dt < 15) return;    // standing still: GPS wobble
+    rec.dist += d;
+  }
+  seg.push(p);
+  if (ele != null){
+    rec.ema = rec.ema == null ? ele : rec.ema + 0.25 * (ele - rec.ema);
+    if (rec.ref == null) rec.ref = rec.ema;
+    else if (rec.ema - rec.ref >= 3){ rec.gain += rec.ema - rec.ref; rec.ref = rec.ema; }
+    else if (rec.ref - rec.ema >= 3) rec.ref = rec.ema;
+  }
+  checkSplit();
+  if (now() - persistT > 4000) persistLive();
+}
+const activeMs = (r = rec) => r ? r.spans.reduce((s, [a, b]) => s + ((b ?? now()) - a), 0) : 0;
+function currentSpeed(){
+  if (!rec || rec.paused) return 0;
+  const seg = curSeg(); if (seg.length < 2) return 0;
+  const tEnd = now(), lastP = seg[seg.length - 1];
+  if (tEnd - lastP[3] > 15000) return 0;
+  let d = 0, i = seg.length - 1;
+  while (i > 0 && lastP[3] - seg[i - 1][3] <= 25000){ d += hav(seg[i - 1], seg[i]); i--; }
+  const dt = (lastP[3] - seg[i][3]) / 1000;
+  return dt >= 4 ? d / dt : 0;
+}
+function checkSplit(){
+  const u = U().d, k = Math.floor(rec.dist / u);
+  if (k > (rec.splitN || 0)){
+    const t = activeMs() / 1000, split = t - (rec.splitT || 0);
+    rec.splitN = k; rec.splitT = t;
+    const T = TYPES[rec.type];
+    const say = `${k} ${U().dn}${k > 1 ? 's' : ''}. Time ${spoken(t)}. ` + (T.pace ? `Last ${U().dn} ${spoken(split)}.` : `Average speed ${(rec.dist / t * U().sps).toFixed(1)} ${U().sp === 'km/h' ? 'kilometres per hour' : 'miles per hour'}.`);
+    speak(say);
+  }
+}
+const spoken = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? `${h} hour${h > 1 ? 's' : ''} ` : '') + (m ? `${m} minute${m !== 1 ? 's' : ''} ` : '') + `${x} second${x !== 1 ? 's' : ''}`; };
+function speak(text){
+  if (!S.settings.voice || !('speechSynthesis' in window)) return;
+  try { const u = new SpeechSynthesisUtterance(text); u.lang = 'en-GB'; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch(e) {}
+}
+async function wakeOn(){
+  if (!S.settings.keepAwake || !('wakeLock' in navigator) || wake) return;
+  try { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } catch(e) { wake = null; }
+}
+function wakeOff(){ if (wake){ wake.release().catch(() => {}); wake = null; } }
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible'){ if (rec) wakeOn(); }
+  else if (rec) persistLive();
+});
+window.addEventListener('pagehide', () => { if (rec) persistLive(); });
+
+function persistLive(){
+  if (!rec) return; persistT = now();
+  const segs = rec.segs.filter(s => s.length);
+  const data = { ...rec, segs:undefined, enc:encodeTrack(segs.length ? segs : [[]], rec.t0) };
+  lsSet(LIVE, JSON.stringify(data));
+}
+function restoreLive(){
+  try {
+    const d = JSON.parse(localStorage.getItem(LIVE) || 'null'); if (!d) return;
+    rec = { ...d, segs:decodeTrack(d.enc) }; delete rec.enc;
+    if (!rec.segs.length) rec.segs = [[]];
+    if (!rec.paused) rec.segs.push([]);                      // the app was closed: don't draw a straight line across the gap
+    rec.restored = true; S.recType = rec.type;
+  } catch(e){ rec = null; localStorage.removeItem(LIVE); }
+}
+// Phone GPS heights are often measured from the ellipsoid, not sea level (tens of metres out).
+// When there's a signal, line them up with terrain data once per area, and once per recording.
+let eleOff = null, calAt = null, calBusy = false;
+async function calibrate(){
+  if (calBusy || !navigator.onLine || !fix || fix.alt == null || fix.acc > 30) return;
+  if (rec ? rec.cal : (calAt && hav(calAt, [fix.lat, fix.lng]) < 3000)) return;
+  calBusy = true; const f = fix;
+  try {
+    const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${f.lat.toFixed(5)}&longitude=${f.lng.toFixed(5)}`);
+    const j = await res.json(); const g = j && j.elevation && j.elevation[0];
+    if (typeof g === 'number'){
+      eleOff = g - f.alt; calAt = [f.lat, f.lng];
+      if (rec && !rec.cal) applyOffset(eleOff);
+      renderLive();
+    }
+  } catch(e) {}
+  calBusy = false;
+}
+function applyOffset(off){
+  const delta = off - (rec.off || 0);
+  rec.segs.forEach(s => s.forEach(p => { if (p[2] != null) p[2] = Math.round((p[2] + delta) * 10) / 10; }));
+  if (rec.ema != null){ rec.ema += delta; rec.ref += delta; }
+  rec.off = off; rec.cal = true;
+}
+function startRec(){
+  if (!navigator.geolocation){ toast('This browser can’t share your location, so it can’t record.'); return; }
+  if (S.gpsErr === 'denied'){ toast('Location is blocked for this app. Allow it in your phone’s settings, then try again.', 5000); return; }
+  const t = now();
+  rec = { id:newId(), type:S.recType, t0:t, spans:[[t, null]], segs:[[]], dist:0, gain:0, ema:null, ref:null, off:eleOff || 0, cal:eleOff != null, splitN:0, splitT:0, paused:false };
+  if (fix && fix.acc <= 50 && t - fix.t < 5000) addPoint({ ...fix, t });
+  follow = true; locked = false;
+  startWatch(); wakeOn(); persistLive(); calibrate(); startTick();
+  speak(`${TYPES[rec.type].name} started`);
+  render();
+}
+function pauseRec(){ if (!rec || rec.paused) return; rec.spans[rec.spans.length - 1][1] = now(); rec.paused = true; persistLive(); speak('Paused'); render(); }
+function resumeRec(){ if (!rec || !rec.paused) return; rec.spans.push([now(), null]); rec.segs.push([]); rec.paused = false; persistLive(); speak('Resumed'); render(); }
+function startTick(){ clearInterval(tick); tick = setInterval(() => { renderLive(); }, 1000); }
+function endRecording(){
+  rec = null; locked = false; localStorage.removeItem(LIVE);
+  clearInterval(tick); tick = null; wakeOff();
+  if (S.tab !== 'record') stopWatch();
+  renderRecMapTrack();
+}
+function saveRec(name, type, notes){
+  const r = rec; if (!r) return;
+  if (!r.paused) r.spans[r.spans.length - 1][1] = now();
+  const segs = r.segs.filter(s => s.length);
+  const dur = Math.round(activeMs(r) / 1000);
+  const trk = encodeTrack(segs.length ? segs : [[]], r.t0, dur);
+  const a = { id:r.id, type, name:name || defaultName(type, r.t0), notes:notes || '', start:r.t0, trackRev:1, created:now() };
+  restat(a, trk);
+  putTrack(a.id, trk); saveAct(a, true);
+  endRecording();
+  speak('Activity saved');
+  if (S.settings.terrain && navigator.onLine && a.stats.dist > 0) addTerrain(a.id, true);
+  render(); openDetail(a.id, false);
+}
+function discardRec(){ endRecording(); render(); toast('Activity discarded.'); }
+
+/* ---------- maps (Leaflet + free OpenStreetMap / OpenTopoMap tiles) ---------- */
+const TILES = {
+  streets:{ url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', max:19, attr:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' },
+  topo:{ url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', max:17, attr:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | style &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)' },
+};
+const cssVar = n => getComputedStyle(document.body).getPropertyValue(n).trim();
+function makeMap(el){
+  if (!window.L){ el.classList.add('nomap'); el.innerHTML = '<p>The map needs a signal the first time it loads. Recording still works without it.</p>'; return null; }
+  el.classList.remove('nomap');
+  const m = L.map(el, { zoomControl:false, attributionControl:true, worldCopyJump:true });
+  m.attributionControl.setPrefix(false);
+  setTiles(m);
+  return m;
+}
+function setTiles(m){
+  const t = TILES[S.settings.map] || TILES.streets;
+  if (m._tl){ if (m._tlKey === S.settings.map) return; m.removeLayer(m._tl); }
+  m._tl = L.tileLayer(t.url, { maxZoom:t.max, maxNativeZoom:t.max, attribution:t.attr, crossOrigin:'anonymous', subdomains:'abc' }).addTo(m);
+  m._tlKey = S.settings.map;
+}
+let recMap = null, recLine = [], meMarker = null, accCircle = null;
+function ensureRecMap(){
+  if (recMap || !window.L) { if (!window.L && !$('#rec-map').classList.contains('nomap')) makeMap($('#rec-map')); return recMap; }
+  recMap = makeMap($('#rec-map')); if (!recMap) return null;
+  let last = null; try { last = JSON.parse(localStorage.getItem('stride:last')); } catch(e) {}
+  if (fix) recMap.setView([fix.lat, fix.lng], 16); else if (last) recMap.setView(last, 14); else recMap.setView([30, 0], 2);
+  recMap.on('dragstart', () => { follow = false; renderRecenter(); });
+  return recMap;
+}
+function renderRecMapTrack(){
+  if (!recMap) return;
+  recLine.forEach(l => recMap.removeLayer(l)); recLine = [];
+  if (!rec) return;
+  const col = cssVar('--accent');
+  for (const s of rec.segs){
+    if (s.length < 2) continue;
+    const ll = s.map(p => [p[0], p[1]]);
+    recLine.push(L.polyline(ll, { color:'#fff', weight:9, opacity:.9, interactive:false }).addTo(recMap));
+    recLine.push(L.polyline(ll, { color:col, weight:5, interactive:false }).addTo(recMap));
+  }
+}
+let lastDrawn = 0;
+function updateRecMap(){
+  if (S.tab !== 'record' || !ensureRecMap() || !fix) return;
+  const ll = [fix.lat, fix.lng];
+  if (!meMarker){
+    meMarker = L.marker(ll, { icon:L.divIcon({ className:'', html:'<div class="me-dot"></div>', iconSize:[22,22], iconAnchor:[11,11] }), interactive:false, keyboard:false }).addTo(recMap);
+    accCircle = L.circle(ll, { radius:fix.acc, stroke:false, fillColor:cssVar('--accent'), fillOpacity:.12, interactive:false }).addTo(recMap);
+    recMap.setView(ll, Math.max(recMap.getZoom(), 16));
+  } else { meMarker.setLatLng(ll); accCircle.setLatLng(ll).setRadius(Math.min(fix.acc, 200)); }
+  if (rec){
+    const n = rec.segs.reduce((s, x) => s + x.length, 0);
+    if (n !== lastDrawn){ lastDrawn = n; renderRecMapTrack(); }
+  }
+  if (follow) recMap.panTo(ll, { animate:true });
+}
+function renderRecenter(){ const b = $('#recenter'); b.innerHTML = I.locate; b.classList.toggle('on', follow); b.setAttribute('aria-pressed', String(follow)); }
+
+/* ---------- theme ---------- */
+const mq = window.matchMedia('(prefers-color-scheme: dark)');
+function applyTheme(){
+  const t = S.settings.theme === 'auto' ? (mq.matches ? 'dark' : 'light') : S.settings.theme;
+  document.documentElement.dataset.theme = t;
+  $$('meta[name="theme-color"]').forEach(m => m.setAttribute('content', t === 'dark' ? '#0e1418' : '#eef2f3'));
+  if (recMap) setTiles(recMap); if (dMap) setTiles(dMap);
+}
+mq.addEventListener && mq.addEventListener('change', applyTheme);
+
+/* ---------- rendering ---------- */
+const TABS = [['record','Record',I.rec],['list','Activities',I.list],['stats','Stats',I.stats],['you','You',I.you]];
+function renderTabs(){
+  $('#tabs').innerHTML = TABS.map(([k, n, ic]) => `<button role="tab" data-tab="${k}" aria-selected="${S.tab === k}">${ic}<span>${n}</span>${k === 'record' && rec ? '<span class="recdot" aria-label="Recording"></span>' : ''}</button>`).join('');
+}
+function showTab(t){
+  S.tab = t;
+  $$('.view').forEach(v => v.hidden = v.id !== 'v-' + t);
+  if (t === 'record'){ startWatch(); setTimeout(() => { ensureRecMap(); if (recMap) recMap.invalidateSize(); updateRecMap(); renderRecMapTrack(); }, 30); }
+  else if (!rec) stopWatch();
+  render();
+}
+function render(fromRemote){
+  document.body.dataset.type = rec ? rec.type : S.recType;
+  renderTabs(); renderGate();
+  const ae = document.activeElement, typing = ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName);
+  if (S.tab === 'record') renderRecord();
+  if (fromRemote && typing) return;
+  if (S.tab === 'list') renderList();
+  if (S.tab === 'stats') renderStats();
+  if (S.tab === 'you') renderYou();
+}
+
+function renderRecord(){
+  const tp = rec ? rec.type : S.recType;
+  $('#type-pick').innerHTML = Object.entries(TYPES).map(([k, t]) => `<button role="radio" data-type="${k}" aria-checked="${tp === k}" ${rec ? 'disabled' : ''}>${t.name}</button>`).join('');
+  renderRecenter(); renderLive(); renderControls();
+}
+function renderLive(){
+  if (S.tab !== 'record') return;
+  const tp = rec ? rec.type : S.recType, T = TYPES[tp], u = U();
+  const dist = rec ? rec.dist : 0, secs = rec ? activeMs() / 1000 : 0;
+  $('#l-dist').textContent = fmtDist(dist, 2);
+  $('#l-dunit').textContent = u.dl;
+  $('#l-time').textContent = fmtDur(secs);
+  const sp = currentSpeed();
+  if (T.pace){
+    $('#l-pace').textContent = fmtPace(sp > 0.3 ? u.d / sp : Infinity); $('#l-pace-l').textContent = `Pace /${u.dl}`;
+    $('#l-avg').textContent = fmtPace(paceOf(dist, secs)); $('#l-avg-l').textContent = `Avg pace /${u.dl}`;
+  } else {
+    $('#l-pace').textContent = fmtSpeed(sp); $('#l-pace-l').textContent = `Speed ${u.sp}`;
+    $('#l-avg').textContent = fmtSpeed(secs ? dist / secs : 0); $('#l-avg-l').textContent = `Avg ${u.sp}`;
+  }
+  $('#l-gain').textContent = fmtEle(rec ? rec.gain : 0); $('#l-gain-l').textContent = `Climb ${u.el}`;
+  const alt = fix && fix.alt != null ? fix.alt + (rec ? (rec.off || 0) : (eleOff || 0)) : null;
+  $('#l-ele').textContent = fmtEle(alt); $('#l-ele-l').textContent = `Elevation ${u.el}`;
+  const st = $('#l-state');
+  st.textContent = rec ? (rec.paused ? 'Paused' : 'Recording') : '';
+  st.className = 'state' + (rec && !rec.paused ? ' rec' : '');
+  // GPS chip
+  const chip = $('#gps-chip');
+  let cls = '', txt = 'Finding GPS…';
+  if (!navigator.geolocation){ cls = 'bad'; txt = 'No GPS'; }
+  else if (S.gpsErr === 'denied'){ cls = 'bad'; txt = 'Location blocked'; }
+  else if (fix && now() - fix.t < 20000){ const a = Math.round(fix.acc); cls = a <= 12 ? 'good' : a <= 30 ? 'ok' : 'bad'; txt = `GPS ±${a} m`; }
+  chip.className = 'gps ' + cls; chip.lastElementChild.textContent = txt;
+  // banner
+  let b = '';
+  if (rec && rec.restored) b = 'Recording restored. GPS stops while the app is closed, so that stretch is skipped.';
+  else if (!rec && S.gpsErr === 'denied') b = 'Location is blocked. Allow location for this app in your phone’s settings to record.';
+  const bn = $('#live-banner'); if (bn.dataset.t !== b){ bn.dataset.t = b; bn.innerHTML = b ? `<p class="banner">${esc(b)}</p>` : ''; }
+}
+function renderControls(){
+  const c = $('#controls');
+  if (!rec){
+    const ready = fix && now() - fix.t < 20000 && fix.acc <= 50;
+    c.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:6px"><button class="start" data-act="start">Start</button><span class="hint">${ready ? 'Keep the app open while you go' : 'You can start now; the route fills in once GPS is found'}</span></div>`;
+    return;
+  }
+  if (locked){
+    c.innerHTML = `<button class="pill line hold" data-hold="unlock" aria-label="Press and hold to unlock"><span class="fill"></span>${I.unlock}<span>Hold to unlock</span></button>`;
+    return;
+  }
+  c.innerHTML = rec.paused
+    ? `<button class="pill acc" data-act="resume">${I.play}<span>Resume</span></button><button class="pill dark" data-act="finish">${I.stop}<span>Finish</span></button>`
+    : `<button class="lockbtn" data-act="lock" aria-label="Lock buttons">${I.lock}</button><button class="pill dark" data-act="pause">${I.pause}<span>Pause</span></button>`;
+}
+
+/* list */
+function glyphSvg(pv, color){
+  const pts = decodePreview(pv);
+  if (pts.length < 2) return `<svg viewBox="0 0 46 46"><circle cx="23" cy="23" r="5" fill="${color}"/></svg>`;
+  const lat0 = pts[0][0], k = Math.cos(lat0 * RAD);
+  const xy = pts.map(([a, b]) => [b * k, -a]);
+  const xs = xy.map(p => p[0]), ys = xy.map(p => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const sc = 40 / Math.max(maxX - minX, maxY - minY, 1e-9);
+  const ox = 3 + (40 - (maxX - minX) * sc) / 2, oy = 3 + (40 - (maxY - minY) * sc) / 2;
+  const d = xy.map((p, i) => (i ? 'L' : 'M') + ((p[0] - minX) * sc + ox).toFixed(1) + ' ' + ((p[1] - minY) * sc + oy).toFixed(1)).join('');
+  const e = xy[xy.length - 1];
+  return `<svg viewBox="0 0 46 46" aria-hidden="true"><path d="${d}" fill="none" stroke="${color}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${((e[0]-minX)*sc+ox).toFixed(1)}" cy="${((e[1]-minY)*sc+oy).toFixed(1)}" r="3" fill="${color}"/></svg>`;
+}
+function statLine(a){
+  const st = a.stats || {}, T = TYPES[a.type] || TYPES.run, u = U();
+  const third = T.pace ? `${fmtPace(paceOf(st.dist, st.moving || st.time))}<small>/${u.dl}</small>` : `${fmtSpeed(st.dist / (st.moving || st.time || 1))}<small>${u.sp}</small>`;
+  return `<span>${fmtDist(st.dist)}<small>${u.dl}</small></span><span>${fmtDur(st.time)}</span><span>${third}</span>`;
+}
+function renderList(){
+  const v = $('#v-list');
+  const all = liveActs(), acts = all.filter(a => S.filter === 'all' || a.type === S.filter);
+  const chips = [['all','All'], ...Object.entries(TYPES).map(([k, t]) => [k, t.name + 's'])];
+  let html = `<div class="scroll-pad"><div class="vhead"><h1 class="vtitle">Activities</h1><button class="iconbtn" data-act="import-gpx" aria-label="Import a GPX file">${I.upload}</button></div>
+    <div class="chips">${chips.map(([k, n]) => `<button data-filter="${k}" aria-pressed="${S.filter === k}">${n}</button>`).join('')}</div>`;
+  if (!acts.length){
+    html += all.length ? `<div class="empty"><h2>Nothing here yet</h2><p>No ${esc(TYPES[S.filter].name.toLowerCase())}s recorded so far.</p></div>`
+      : `<div class="empty"><h2>No activities yet</h2><p>Head to Record and tap Start, or import a GPX file from another app.</p><div class="btnrow" style="justify-content:center"><button class="btn primary" data-tab="record">Record an activity</button><button class="btn" data-act="import-gpx">Import GPX</button></div></div>`;
+  } else {
+    let curKey = null;
+    const groups = {};
+    acts.forEach(a => { const d = new Date(a.start), k = d.getFullYear() * 12 + d.getMonth(); (groups[k] ||= []).push(a); });
+    for (const k of Object.keys(groups).sort((a, b) => b - a)){
+      const g = groups[k], tot = g.reduce((s, a) => s + (a.stats?.dist || 0), 0);
+      html += `<div class="group"><h2>${MF.format(new Date(g[0].start))}</h2><span>${g.length} ${g.length === 1 ? 'activity' : 'activities'}, ${fmtDist(tot, 1)} ${U().dl}</span></div>`;
+      html += g.map(a => `<button class="act" data-open="${a.id}">
+        <span class="glyph" style="--accent:var(--${a.type})">${glyphSvg(a.pv, `var(--${a.type})`)}</span>
+        <span class="tx"><span class="nm" style="display:block">${esc(a.name)}</span><span class="dt" style="display:block"><span class="tdot" style="background:var(--${a.type})"></span>${TYPES[a.type]?.name || ''}, ${fmtWhen(a.start)}</span>
+        <span class="st">${statLine(a)}</span></span></button>`).join('');
+    }
+  }
+  v.innerHTML = html + '</div>';
+}
+
+/* stats */
+const weekStart = t => { const d = new Date(t); d.setHours(0,0,0,0); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d.getTime(); };
+function renderStats(){
+  const v = $('#v-stats');
+  const f = S.sfilter, acts = liveActs().filter(a => f === 'all' || a.type === f), u = U();
+  const nowD = new Date(), ws = weekStart(now()), ms = new Date(nowD.getFullYear(), nowD.getMonth(), 1).getTime(), ys = new Date(nowD.getFullYear(), 0, 1).getTime();
+  const sum = from => { const g = acts.filter(a => a.start >= from); return { n:g.length, d:g.reduce((s, a) => s + (a.stats?.dist || 0), 0), t:g.reduce((s, a) => s + (a.stats?.time || 0), 0), e:g.reduce((s, a) => s + (a.stats?.gain || 0), 0) }; };
+  const tile = (t, x) => `<div class="card"><span class="t">${t}</span><b class="num">${fmtDist(x.d, 1)}<small>${u.dl}</small></b><span>${x.n} ${x.n === 1 ? 'activity' : 'activities'}</span><span>${fmtDur(x.t)}</span><span>${fmtEle(x.e)} ${u.el} climb</span></div>`;
+  const chips = [['all','All'], ...Object.entries(TYPES).map(([k, t]) => [k, t.name + 's'])];
+  // weekly bars, last 12 weeks
+  const weeks = []; for (let i = 11; i >= 0; i--){ const d = new Date(ws); d.setDate(d.getDate() - i * 7); weeks.push(d.getTime()); }
+  const wk = weeks.map((w, i) => { const end = i < 11 ? weeks[i + 1] : Infinity; return acts.filter(a => a.start >= w && a.start < end).reduce((s, a) => s + (a.stats?.dist || 0), 0) / u.d; });
+  // personal bests for the chosen type (runs when showing everything)
+  const pbType = f === 'all' ? 'run' : f;
+  const pbs = BESTS[pbType].map(([D, label]) => {
+    let best = null; liveActs().filter(a => a.type === pbType).forEach(a => { const s = a.stats?.best?.[D]; if (s && (!best || s < best.s)) best = { s, a }; });
+    return { D, label, best };
+  }).filter(x => x.best);
+  v.innerHTML = `<div class="scroll-pad"><h1 class="vtitle">Stats</h1>
+    <div class="chips">${chips.map(([k, n]) => `<button data-sfilter="${k}" aria-pressed="${f === k}">${n}</button>`).join('')}</div>
+    <div class="tot">${tile('This week', sum(ws))}${tile('This month', sum(ms))}${tile(String(nowD.getFullYear()), sum(ys))}</div>
+    <div class="card"><div class="chead"><h3>Distance per week (${u.dl})</h3></div><div class="chart" id="wk-chart"></div></div>
+    <div class="card"><h3>Personal bests: ${TYPES[pbType].name.toLowerCase()}s</h3>
+      ${pbs.length ? `<table class="pbs">${pbs.map(p => `<tr><td><button data-open="${p.best.a.id}"><b>${p.label}</b><br><span class="d" style="text-align:left;display:block">${esc(p.best.a.name)}, ${DFY.format(new Date(p.best.a.start))}</span></button></td><td class="v">${fmtDur(p.best.s)}<div class="d">${pbType === 'ride' ? fmtSpeed(p.D / p.best.s) + ' ' + u.sp : fmtPace(paceOf(p.D, p.best.s)) + ' /' + u.dl}</div></td></tr>`).join('')}</table>`
+        : `<p class="note">Your fastest ${BESTS[pbType].map(b => b[1]).slice(0, 3).join(', ')} and longer efforts appear here once you’ve recorded some ${TYPES[pbType].name.toLowerCase()}s.</p>`}
+    </div></div>`;
+  const labels = weeks.map(w => { const d = new Date(w); return d.getDate() + ' ' + d.toLocaleString('en-GB', { month:'short' }); });
+  barChart($('#wk-chart'), wk, labels, f === 'all' ? cssVar('--ink2') : cssVar('--' + f), x => x.toFixed(1) + ' ' + u.dl);
+}
+
+/* you / settings */
+function renderYou(){
+  const v = $('#v-you'), st = S.settings, u = U();
+  const segBtns = (key, opts) => `<div class="seg wide" role="radiogroup">${opts.map(([val, n]) => `<button role="radio" data-set="${key}" data-val="${val}" aria-checked="${st[key] === val}">${n}</button>`).join('')}</div>`;
+  const sw = (key, label, sub) => `<div class="row"><span class="lbl">${label}${sub ? `<span class="sub">${sub}</span>` : ''}</span><button class="switch" role="switch" data-toggle="${key}" aria-checked="${!!st[key]}" aria-label="${esc(label)}"></button></div>`;
+  const syncText = { local:'Saved on this phone only.', syncing:'Syncing…', synced:'Backed up to your Google account.', offline:'Offline. Changes will sync when you have a signal.', error:'Couldn’t sync just now. Your activities are safe on this phone.' }[S.sync] || '';
+  const cached = liveActs().filter(a => localStorage.getItem(TRK(a.id)) != null).length;
+  let used = 0; try { for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k.startsWith('stride')) used += (localStorage.getItem(k) || '').length; } } catch(e) {}
+  v.innerHTML = `<div class="scroll-pad"><h1 class="vtitle">You</h1>
+  <div class="card"><h3>Account</h3>
+    ${S.account ? `<p style="margin:0 0 4px"><b>${esc(S.account.name || 'Signed in')}</b><br><span class="note" style="margin:0">${esc(S.account.email)}</span></p>` : '<p style="margin:0 0 4px">Not signed in.</p>'}
+    <div class="syncline ${S.account ? S.sync : ''}"><i></i><span>${esc(S.syncMsg || syncText)}</span></div>
+    ${S.signinMsg && !S.account ? `<p class="note" style="color:var(--danger)">${esc(S.signinMsg)}</p>` : ''}
+    ${S.account ? `<button class="btn block" data-act="signout">Sign out</button>` : `<button class="btn primary block" data-act="signin">Sign in with Google</button><p class="note">Sign in to back up your activities and see them on your other devices.</p>`}
+  </div>
+  <div class="card"><h3>Units</h3>${segBtns('units', [['km','Kilometres'],['mi','Miles']])}</div>
+  <div class="card"><h3>Appearance</h3>${segBtns('theme', [['auto','Auto'],['light','Light'],['dark','Dark']])}
+    <h3 style="margin-top:16px">Map</h3>${segBtns('map', [['streets','Streets'],['topo','Contours']])}
+    <p class="note">Contours shows hills and terrain; it zooms in a little less far.</p></div>
+  <div class="card"><h3>While recording</h3>
+    ${sw('voice', 'Spoken updates', `Time and pace every ${u.dn}`)}
+    ${sw('keepAwake', 'Keep screen on', 'Phones pause web-app GPS when the screen locks')}
+    ${sw('terrain', 'Correct elevation with terrain data', 'Uses free Open-Meteo data when you have a signal')}
+  </div>
+  <div class="card"><h3>Backup file</h3>
+    <p class="note" style="margin:0 0 6px">A spare copy of everything, including routes, as a file you can keep anywhere.</p>
+    <div class="btnrow"><button class="btn" data-act="backup">${I.down}Save backup</button><button class="btn" data-act="restore">${I.upload}Restore</button></div>
+    <button class="btn block" style="margin-top:10px" data-act="import-gpx">${I.upload}Import a GPX file</button>
+  </div>
+  <div class="card"><h3>Good to know</h3>
+    <p class="note" style="margin:0">Phones only let web apps use GPS while they’re on screen, so keep Stride open while you record. Lock the buttons with the padlock so a pocket tap doesn’t pause you.</p>
+    <p class="note">Routes stored on this phone: ${cached} of ${liveActs().length} (${(used / 1024 / 1024 * 2).toFixed(1)} MB). Older routes that are backed up are removed from the phone if space runs low, and come back from the cloud when you open them.</p>
+    <p class="note">Stride ${VERSION}. Maps &copy; OpenStreetMap contributors and OpenTopoMap. Elevation data from Open-Meteo.</p>
+  </div></div>`;
+}
+
+/* ---------- charts (hand-drawn SVG) ---------- */
+const NS = 'http://www.w3.org/2000/svg';
+function niceTicks(lo, hi, n = 4){
+  if (!(hi > lo)){ hi = lo + 1; }
+  const raw = (hi - lo) / n, mag = 10 ** Math.floor(Math.log10(raw)), step = [1, 2, 2.5, 5, 10].map(x => x * mag).find(x => x >= raw) || raw;
+  const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(6));
+  return out;
+}
+// One series against distance. Scrubbing reports the index under the finger.
+function lineChart(el, o){
+  const W = Math.max(260, el.clientWidth || 320), H = o.h || 150, L0 = 44, R0 = 8, T0 = 30, B0 = 24;
+  const xs = o.xs, ys = o.ys, n = xs.length;
+  const valid = ys.filter(v => v != null && isFinite(v));
+  if (n < 2 || !valid.length){ el.innerHTML = '<p class="note">Not enough data for this chart.</p>'; return null; }
+  let lo = o.yMin ?? Math.min(...valid), hi = o.yMax ?? Math.max(...valid);
+  if (hi - lo < (o.minSpan || 1)){ const m = (hi + lo) / 2; lo = m - (o.minSpan || 1) / 2; hi = m + (o.minSpan || 1) / 2; }
+  if (!o.ticks && o.yMin == null){ const st = niceTicks(lo, hi, 3); const step = st.length > 1 ? st[1] - st[0] : 1; lo = Math.floor(lo / step + 1e-9) * step; hi = Math.ceil(hi / step - 1e-9) * step; }
+  const ticks = o.ticks ? o.ticks(lo, hi) : niceTicks(lo, hi, 3);
+  lo = Math.min(lo, ticks[0]); hi = Math.max(hi, ticks[ticks.length - 1]);
+  const x0 = xs[0], x1 = xs[n - 1] || 1;
+  const X = x => L0 + (x - x0) / (x1 - x0 || 1) * (W - L0 - R0), Y = y => T0 + (1 - (y - lo) / (hi - lo || 1)) * (H - T0 - B0);
+  let d = '', started = false;
+  for (let i = 0; i < n; i++){ const y = ys[i]; if (y == null || !isFinite(y)){ started = false; continue; } d += (started ? 'L' : 'M') + X(xs[i]).toFixed(1) + ' ' + Y(y).toFixed(1); started = true; }
+  const area = o.area ? `<path d="${d}L${X(x1).toFixed(1)} ${Y(lo)}L${X(x0).toFixed(1)} ${Y(lo)}Z" fill="${o.color}" fill-opacity=".18" stroke="none"/>` : '';
+  const xt = niceTicks(x0, x1, 4).filter(v => v > x0 && v < x1);
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="${esc(o.label)}">
+    <g class="grid">${ticks.map(t => `<line x1="${L0}" x2="${W - R0}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${L0 - 6}" y="${Y(t) + 4}" text-anchor="end">${esc(o.yFmt(t))}</text>`).join('')}</g>
+    ${xt.map(t => `<text x="${X(t)}" y="${H - 6}" text-anchor="middle">${esc(o.xFmt(t))}</text>`).join('')}
+    ${area}<path d="${d}" fill="none" stroke="${o.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <line class="xh" y1="${T0}" y2="${H - B0}" x1="-10" x2="-10" visibility="hidden"/><circle class="dot" r="5" fill="${o.color}" stroke="var(--surface)" stroke-width="2" cx="-10" cy="-10" visibility="hidden"/></svg><div class="tip" hidden></div>`;
+  const svg = el.querySelector('svg'), xh = svg.querySelector('.xh'), dot = svg.querySelector('.dot'), tip = el.querySelector('.tip');
+  const api = {
+    show(i){
+      if (i == null){ xh.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); tip.hidden = true; return; }
+      const x = X(xs[i]), y = ys[i]; xh.setAttribute('x1', x); xh.setAttribute('x2', x); xh.setAttribute('visibility', 'visible');
+      if (y != null && isFinite(y)){ dot.setAttribute('cx', x); dot.setAttribute('cy', Y(y)); dot.setAttribute('visibility', 'visible'); } else dot.setAttribute('visibility', 'hidden');
+      tip.hidden = false; tip.textContent = o.tipFmt(i); tip.style.left = clamp(x / W * el.clientWidth, 60, el.clientWidth - 60) + 'px';
+    },
+  };
+  const idxAt = ev => { const r = svg.getBoundingClientRect(); const x = (ev.clientX - r.left) / r.width * W; const v = x0 + (x - L0) / (W - L0 - R0) * (x1 - x0); let a = 0, b = n - 1; while (b - a > 1){ const m = (a + b) >> 1; if (xs[m] < v) a = m; else b = m; } return Math.abs(xs[a] - v) < Math.abs(xs[b] - v) ? a : b; };
+  let hideT;
+  svg.addEventListener('pointermove', ev => { clearTimeout(hideT); o.onScrub(idxAt(ev)); });
+  svg.addEventListener('pointerdown', ev => { clearTimeout(hideT); o.onScrub(idxAt(ev)); });
+  svg.addEventListener('pointerleave', ev => { if (ev.pointerType === 'mouse') hideT = setTimeout(() => o.onScrub(null), 600); });
+  svg.addEventListener('pointerup', ev => { if (ev.pointerType !== 'mouse'){ hideT = setTimeout(() => o.onScrub(null), 2500); } });
+  return api;
+}
+function barChart(el, vals, labels, color, fmt){
+  const W = Math.max(260, el.clientWidth || 320), H = 150, L0 = 34, R0 = 4, T0 = 10, B0 = 24, n = vals.length;
+  const hi = Math.max(1, ...vals), ticks = niceTicks(0, hi, 3); if (ticks[ticks.length - 1] < hi) ticks.push(+(ticks[ticks.length - 1] + (ticks[1] - ticks[0])).toFixed(6)); const top = ticks[ticks.length - 1];
+  const bw = (W - L0 - R0) / n, Y = v => T0 + (1 - v / top) * (H - T0 - B0);
+  const bars = vals.map((v, i) => { if (v <= 0) return ''; const x = L0 + i * bw + 1, w = bw - 2, y = Y(v), h = Y(0) - y; const r = Math.min(4, w / 2, h);
+    return `<path d="M${x} ${Y(0)}V${y + r}Q${x} ${y} ${x + r} ${y}H${x + w - r}Q${x + w} ${y} ${x + w} ${y + r}V${Y(0)}Z" fill="${color}"/>`; }).join('');
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Distance per week for the last 12 weeks">
+    <g class="grid">${ticks.map(t => `<line x1="${L0}" x2="${W - R0}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${L0 - 6}" y="${Y(t) + 4}" text-anchor="end">${t}</text>`).join('')}</g>
+    ${bars}${labels.map((l, i) => (i % 3 === 2 || i === n - 1) && i !== n - 2 ? `<text x="${L0 + i * bw + bw / 2}" y="${H - 6}" text-anchor="middle">${i === n - 1 ? 'This wk' : esc(l)}</text>` : '').join('')}
+    <rect class="hl" x="-100" y="${T0}" width="${bw}" height="${H - T0 - B0}" fill="var(--ink)" fill-opacity=".06"/></svg><div class="tip" hidden></div>`;
+  const svg = el.querySelector('svg'), tip = el.querySelector('.tip'), hl = svg.querySelector('.hl');
+  const show = ev => { const r = svg.getBoundingClientRect(); const i = clamp(Math.floor(((ev.clientX - r.left) / r.width * W - L0) / bw), 0, n - 1);
+    hl.setAttribute('x', L0 + i * bw); tip.hidden = false; tip.textContent = `Week of ${labels[i]}: ${fmt(vals[i])}`; tip.style.left = clamp((L0 + i * bw + bw / 2) / W * el.clientWidth, 90, el.clientWidth - 90) + 'px'; };
+  svg.addEventListener('pointerdown', show); svg.addEventListener('pointermove', show);
+  svg.addEventListener('pointerleave', () => { tip.hidden = true; hl.setAttribute('x', -100); });
+}
+
+/* ---------- activity detail ---------- */
+let dMap = null, dScrub = null, dCharts = [], dA = null;
+function openDetail(id, push = true){
+  S.detail = id;
+  if (push) history.pushState({ layer:'detail' }, '');
+  $('#detail').hidden = false; $('#detail').scrollTop = 0;
+  renderDetail();
+}
+function closeDetailNow(){
+  S.detail = null; $('#detail').hidden = true;
+  if (dMap){ dMap.remove(); dMap = null; } dCharts = []; dA = null;
+  render();
+}
+async function renderDetail(fromRemote){
+  const id = S.detail, a = S.acts[id], el = $('#detail');
+  if (!a || a.deleted){ if (fromRemote) toast('That activity was deleted on another device.'); closeLayer('detail'); return; }
+  const T = TYPES[a.type] || TYPES.run, st = a.stats || {}, u = U();
+  let trk = getTrack(id);
+  const sameView = fromRemote && el.dataset.id === id && el.dataset.rev === String(a.trackRev || 1) && trk;
+  el.dataset.id = id; el.dataset.rev = String(a.trackRev || 1);
+  document.body.dataset.type = a.type;
+  const avg = T.pace ? [fmtPace(paceOf(st.dist, st.moving)), `Avg pace /${u.dl}`] : [fmtSpeed(st.dist / (st.moving || 1)), `Avg ${u.sp}`];
+  const max = T.pace ? [fmtPace(st.maxSpeed ? u.d / st.maxSpeed : Infinity), `Best pace /${u.dl}`] : [fmtSpeed(st.maxSpeed), `Max ${u.sp}`];
+  const bests = (BESTS[a.type] || []).filter(([D]) => st.best && st.best[D]);
+  const scrollY = el.scrollTop;
+  el.innerHTML = `<div class="ptop"><button class="iconbtn" data-act="back" aria-label="Back">${I.back}</button><span class="ttl" id="d-ttl" style="opacity:0">${esc(a.name)}</span>
+      <button class="iconbtn" data-act="edit" aria-label="Edit">${I.edit}</button></div>
+    <div class="dmap" id="d-map"></div>
+    <div class="dhead"><h1>${esc(a.name)}</h1><p><span class="tdot" style="background:var(--${a.type})"></span>${T.name}, ${fmtWhen(a.start)}</p></div>
+    <div class="dbody">
+      <div class="sgrid">
+        <div class="m k"><b class="num">${fmtDist(st.dist)}</b><small>Distance ${u.dl}</small></div>
+        <div class="m k"><b class="num">${fmtDur(st.moving)}</b><small>Moving time</small></div>
+        <div class="m k"><b class="num">${avg[0]}</b><small>${avg[1]}</small></div>
+        <div class="m"><b class="num">${fmtDur(st.time)}</b><small>Total time</small></div>
+        <div class="m"><b class="num">${max[0]}</b><small>${max[1]}</small></div>
+        <div class="m"><b class="num">${fmtEle(st.gain)}</b><small>Climb ${u.el}</small></div>
+        ${st.eleMax != null ? `<div class="m"><b class="num">${fmtEle(st.eleMax)}</b><small>Highest ${u.el}</small></div><div class="m"><b class="num">${fmtEle(st.eleMin)}</b><small>Lowest ${u.el}</small></div><div class="m"><b class="num">${fmtEle(st.loss)}</b><small>Descent ${u.el}</small></div>` : ''}
+      </div>
+      <div id="d-trackparts"></div>
+      ${bests.length ? `<div class="card"><h3>Fastest efforts</h3><table class="pbs">${bests.map(([D, label]) => `<tr><td><b>${label}</b></td><td class="v">${fmtDur(st.best[D])}<div class="d">${a.type === 'ride' ? fmtSpeed(D / st.best[D]) + ' ' + u.sp : fmtPace(paceOf(D, st.best[D])) + ' /' + u.dl}</div></td></tr>`).join('')}</table></div>` : ''}
+      ${a.notes ? `<div class="card"><h3>Notes</h3><div class="notes">${esc(a.notes)}</div></div>` : ''}
+      <div class="btnrow" style="margin-top:16px"><button class="btn" data-act="gpx">${I.down}Export GPX</button><button class="btn danger" data-act="delete">${I.trash}Delete</button></div>
+    </div>`;
+  if (sameView) el.scrollTop = scrollY;
+  if (dMap){ dMap.remove(); dMap = null; } dCharts = []; dScrub = null; dA = null;
+  const parts = $('#d-trackparts');
+  if (!trk){
+    if (!(st.dist > 0)){ $('#d-map').hidden = true; return; }
+    if (store.user){
+      parts.innerHTML = '<p class="note">Loading the route…</p>';
+      trk = await fetchTrack(id);
+      if (S.detail !== id) return;
+      if (!trk){ parts.innerHTML = '<p class="note">The route hasn’t reached the cloud yet. It will appear once the device that recorded it syncs.</p>'; $('#d-map').hidden = true; return; }
+    } else { parts.innerHTML = '<p class="note">This route is stored in the cloud. Sign in to see the map and charts.</p>'; $('#d-map').hidden = true; return; }
+  }
+  const segs = decodeTrack(trk);
+  const A = analyze(segs, a.type, eleArrFor(a, trk), trk.dur); dA = A;
+  if (A.n < 2){ $('#d-map').hidden = true; parts.innerHTML = ''; return; }
+  // map
+  dMap = makeMap($('#d-map'));
+  if (dMap){
+    const col = cssVar('--' + a.type), lines = [];
+    for (const s of segs){ if (s.length < 2) continue; const ll = s.map(p => [p[0], p[1]]); L.polyline(ll, { color:'#fff', weight:9, opacity:.9, interactive:false }).addTo(dMap); lines.push(L.polyline(ll, { color:col, weight:5, interactive:false }).addTo(dMap)); }
+    const pin = c => L.divIcon({ className:'', html:`<div class="pin ${c}"></div>`, iconSize:[18,18], iconAnchor:[9,9] });
+    L.marker([A.pts[0][0], A.pts[0][1]], { icon:pin('s'), interactive:false, keyboard:false }).addTo(dMap);
+    L.marker([A.pts[A.n-1][0], A.pts[A.n-1][1]], { icon:pin('e'), interactive:false, keyboard:false }).addTo(dMap);
+    dScrub = L.marker([A.pts[0][0], A.pts[0][1]], { icon:L.divIcon({ className:'', html:'<div class="scrub"></div>', iconSize:[18,18], iconAnchor:[9,9] }), interactive:false, keyboard:false, opacity:0 }).addTo(dMap);
+    const b = L.latLngBounds(A.pts.map(p => [p[0], p[1]]));
+    setTimeout(() => { if (!dMap) return; dMap.invalidateSize(); dMap.fitBounds(b, { padding:[28, 28], maxZoom:17 }); }, 20);
+  }
+  // charts, downsampled to ~400 points
+  const step = Math.max(1, Math.ceil(A.n / 400)), idx = [];
+  for (let i = 0; i < A.n; i += step) idx.push(i); if (idx[idx.length - 1] !== A.n - 1) idx.push(A.n - 1);
+  const xs = idx.map(i => A.cumD[i] / u.d);
+  const hasDem = !!trk.dem, eleSrc = A.src;
+  const spl = splitsOf(A), fastest = Math.min(...spl.filter(s => !s.part).map(s => s.t / s.d), Infinity);
+  parts.innerHTML = `
+    ${A.ele ? `<div class="card"><div class="chead"><h3>Elevation</h3>${hasDem ? `<div class="minichips" role="group" aria-label="Elevation source"><button data-elesrc="dem" aria-pressed="${eleSrc === 'dem'}">Terrain</button><button data-elesrc="gps" aria-pressed="${eleSrc === 'gps'}">GPS</button></div>` : (navigator.onLine && st.dist > 0 ? `<button class="btn" style="min-height:40px;font-size:14px" data-act="terrain">Use terrain data</button>` : '')}</div><div class="chart" id="c-ele"></div></div>` : ''}
+    <div class="card"><div class="chead"><h3>${T.pace ? 'Pace' : 'Speed'}</h3></div><div class="chart" id="c-spd"></div></div>
+    ${spl.length ? `<div class="card"><h3>Splits</h3><table class="splits"><thead><tr><th>${u.dl === 'km' ? 'Km' : 'Mile'}</th><th>${T.pace ? 'Pace' : 'Speed'}</th><th></th><th style="text-align:right">${u.el}</th></tr></thead><tbody>
+      ${spl.map((s, i) => { const rate = s.t / s.d; return `<tr class="${s.part ? 'part' : ''}"><td>${s.part ? (s.d / u.d).toFixed(2) : i + 1}</td><td>${T.pace ? fmtPace(rate * u.d) : fmtSpeed(1 / rate)}</td><td class="bar"><div class="b" style="width:${clamp(fastest / rate * 100, 8, 100).toFixed(0)}%"></div></td><td class="e">${s.de == null ? '' : (s.de >= 0 ? '+' : '−') + fmtEle(Math.abs(s.de))}</td></tr>`; }).join('')}
+    </tbody></table></div>` : ''}`;
+  const onScrub = k => {
+    dCharts.forEach(c => c && c.show(k == null ? null : k));
+    if (dScrub){ if (k == null) dScrub.setOpacity(0); else { const p = A.pts[idx[k]]; dScrub.setLatLng([p[0], p[1]]).setOpacity(1); } }
+  };
+  const xFmt = v => (+v.toFixed(1)) + ' ' + u.dl;
+  if (A.ele){
+    dCharts.push(lineChart($('#c-ele'), { xs, ys:idx.map(i => A.ele[i] == null ? null : A.ele[i] / u.e), color:cssVar('--ele'), area:true, h:140, minSpan:20, label:'Elevation profile',
+      yFmt:v => Math.round(v) + '', xFmt, tipFmt:k => `${fmtDist(A.cumD[idx[k]])} ${u.dl}: ${fmtEle(A.ele[idx[k]])} ${u.el}`, onScrub }));
+  }
+  // charts use a wider (~30 s) average so GPS wobble doesn't drown the trend
+  const sm = new Array(A.n); { let lo = 0, hi = 0, sum = 0; for (let i = 0; i < A.n; i++){ while (hi < A.n && A.cumT[hi] - A.cumT[i] <= 15) sum += A.spd[hi++]; while (A.cumT[i] - A.cumT[lo] > 15) sum -= A.spd[lo++]; sm[i] = sum / Math.max(1, hi - lo); } }
+  const spdY = idx.map(i => sm[i]);
+  if (T.pace){
+    // plotted as speed so faster sits higher; the axis is labelled in pace
+    const vmax = Math.max(...spdY), slow = Math.max(TYPES[a.type].moveV, 0.6);
+    dCharts.push(lineChart($('#c-spd'), { xs, ys:spdY.map(v => v < slow ? null : v), color:cssVar('--' + a.type), h:150, minSpan:0.5, yMin:Math.max(slow, Math.min(...spdY.filter(v => v >= slow), vmax) * 0.9), label:'Pace over distance',
+      ticks:(lo, hi) => {   // round pace values (every 15 s, 30 s, 1 min…) placed on the speed axis
+        const pFast = u.d / hi, pSlow = u.d / lo, span = pSlow - pFast;
+        const step = [5, 10, 15, 30, 60, 120, 300, 600].find(x => span / x <= 3.5) || 900;
+        const t = []; for (let p = Math.ceil(pFast / step) * step; p <= pSlow + 1e-6; p += step) t.push(u.d / p);
+        if (t.length < 2) t.push(u.d / (Math.floor(pFast / step) * step || step), u.d / (Math.ceil(pSlow / step) * step + (Math.ceil(pSlow / step) * step === pSlow ? step : 0)));
+        return [...new Set(t)].sort((x, y) => x - y);
+      },
+      yFmt:v => fmtPace(u.d / v), xFmt, tipFmt:k => `${fmtDist(A.cumD[idx[k]])} ${u.dl}: ${sm[idx[k]] < slow ? 'stopped' : fmtPace(u.d / sm[idx[k]]) + ' /' + u.dl}`, onScrub }));
+  } else {
+    dCharts.push(lineChart($('#c-spd'), { xs, ys:spdY.map(v => v * u.sps), color:cssVar('--' + a.type), h:150, minSpan:5, yMin:0, label:'Speed over distance',
+      yFmt:v => Math.round(v) + '', xFmt, tipFmt:k => `${fmtDist(A.cumD[idx[k]])} ${u.dl}: ${fmtSpeed(sm[idx[k]])} ${u.sp}`, onScrub }));
+  }
+}
+
+/* ---------- sheets ---------- */
+let sheetKind = null;
+function openSheet(kind, html){
+  sheetKind = kind; $('#sheet').innerHTML = html; $('#sheet-wrap').hidden = false;
+  history.pushState({ layer:'sheet' }, '');
+  const f = $('#sheet input.t'); if (f && kind !== 'finish') setTimeout(() => f.focus(), 50);
+}
+function closeSheetNow(){ sheetKind = null; $('#sheet-wrap').hidden = true; $('#sheet').innerHTML = ''; }
+function closeLayer(){ history.back(); }
+window.addEventListener('popstate', () => {
+  if (!$('#sheet-wrap').hidden) closeSheetNow();
+  else if (S.detail) closeDetailNow();
+});
+const typeSeg = (cur, name = 'stype') => `<div class="seg wide" role="radiogroup" aria-label="Activity type">${Object.entries(TYPES).map(([k, t]) => `<button role="radio" data-${name}="${k}" aria-checked="${cur === k}">${t.name}</button>`).join('')}</div>`;
+function openFinish(){
+  if (!rec) return;
+  pauseRec();
+  const secs = activeMs() / 1000, T = TYPES[rec.type], u = U();
+  const third = T.pace ? `${fmtPace(paceOf(rec.dist, secs))}<small>Avg pace /${u.dl}</small>` : `${fmtSpeed(secs ? rec.dist / secs : 0)}<small>Avg ${u.sp}</small>`;
+  openSheet('finish', `<h2>Save activity</h2>
+    <div class="summary"><span>${fmtDist(rec.dist)}<small>${u.dl}</small></span><span>${fmtDur(secs)}<small>Time</small></span><span>${third}</span></div>
+    <label class="f" for="f-name">Name</label><input class="t" id="f-name" value="${esc(defaultName(rec.type, rec.t0))}" maxlength="80">
+    <label class="f">Type</label>${typeSeg(rec.type)}
+    <label class="f" for="f-notes">Notes</label><textarea class="t" id="f-notes" placeholder="How did it feel?" maxlength="2000"></textarea>
+    <div class="stack"><button class="btn acc block" data-act="save-rec">Save</button><button class="btn block" data-act="keep-going">Keep going</button><button class="btn danger block" data-act="discard">Discard</button></div>`);
+}
+function openEdit(){
+  const a = S.acts[S.detail]; if (!a) return;
+  openSheet('edit', `<h2>Edit activity</h2>
+    <label class="f" for="f-name">Name</label><input class="t" id="f-name" value="${esc(a.name)}" maxlength="80">
+    <label class="f">Type</label>${typeSeg(a.type)}
+    <label class="f" for="f-notes">Notes</label><textarea class="t" id="f-notes" maxlength="2000">${esc(a.notes || '')}</textarea>
+    <div class="stack"><button class="btn primary block" data-act="save-edit">Save changes</button><button class="btn block" data-act="close-sheet">Cancel</button></div>`);
+}
+function openDelete(){
+  const a = S.acts[S.detail]; if (!a) return;
+  openSheet('delete', `<h2>Delete this ${esc(TYPES[a.type].name.toLowerCase())}?</h2><p style="margin:0;color:var(--ink2)">“${esc(a.name)}” will be removed from this phone${S.account ? ' and all your signed-in devices' : ''}. A backup file you saved earlier still has it.</p>
+    <div class="stack"><button class="btn danger solid block" data-act="confirm-delete">Delete</button><button class="btn block" data-act="close-sheet">Keep it</button></div>`);
+}
+const sheetType = () => { const b = $('#sheet [aria-checked="true"][data-stype]'); return b ? b.dataset.stype : 'run'; };
+
+/* ---------- files: GPX and backups ---------- */
+function download(name, text, mime){
+  const blob = new Blob([text], { type:mime }), url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+const slug = s => String(s || 'activity').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'activity';
+function gpxOf(a, trk){
+  const segs = decodeTrack(trk), dem = eleArrFor(a, trk); let o = 0;
+  const xmlEsc = s => esc(s);
+  const body = segs.map(s => '<trkseg>' + s.map((p, i) => { const e = dem ? dem[o + i] : p[2]; return `<trkpt lat="${p[0].toFixed(6)}" lon="${p[1].toFixed(6)}">${e != null ? `<ele>${e.toFixed(1)}</ele>` : ''}<time>${new Date(p[3]).toISOString()}</time></trkpt>`; }).join('') + (o += s.length, '</trkseg>')).join('\n');
+  const gt = { run:'running', ride:'cycling', walk:'walking' }[a.type];
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Stride" xmlns="http://www.topografix.com/GPX/1/1">\n<metadata><time>${new Date(a.start).toISOString()}</time></metadata>\n<trk><name>${xmlEsc(a.name)}</name><type>${gt}</type>\n${body}\n</trk>\n</gpx>\n`;
+}
+async function exportGpx(){
+  const a = S.acts[S.detail]; let trk = a && getTrack(a.id);
+  if (a && !trk) trk = await fetchTrack(a.id);
+  if (!trk){ toast('The route isn’t on this phone yet.'); return; }
+  download(`${new Date(a.start).toISOString().slice(0, 10)}-${slug(a.name)}.gpx`, gpxOf(a, trk), 'application/gpx+xml');
+}
+function parseGpx(text){
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('That file isn’t a readable GPX file.');
+  const tag = (el, n) => el.getElementsByTagNameNS('*', n)[0];
+  let segEls = [...doc.getElementsByTagNameNS('*', 'trkseg')];
+  const ptsOf = (els) => els.map(p => { const t = tag(p, 'time'), e = tag(p, 'ele'); return [parseFloat(p.getAttribute('lat')), parseFloat(p.getAttribute('lon')), e ? parseFloat(e.textContent) : null, t ? Date.parse(t.textContent) : NaN]; }).filter(p => isFinite(p[0]) && isFinite(p[1]));
+  let segs = segEls.map(s => ptsOf([...s.getElementsByTagNameNS('*', 'trkpt')]));
+  if (!segs.some(s => s.length)) segs = [ptsOf([...doc.getElementsByTagNameNS('*', 'rtept')])];
+  segs = segs.filter(s => s.length);
+  if (!segs.length) throw new Error('No route points were found in that file.');
+  if (segs.some(s => s.some(p => !isFinite(p[3])))) throw new Error('That GPX file has no times, so pace can’t be worked out.');
+  segs.forEach(s => s.sort((a, b) => a[3] - b[3]));
+  segs.sort((a, b) => a[0][3] - b[0][3]);
+  const nameEl = tag(doc, 'trk') && tag(tag(doc, 'trk'), 'name'), typeEl = tag(doc, 'type');
+  const tt = (typeEl && typeEl.textContent || '').toLowerCase();
+  const type = /ride|bik|cycl/.test(tt) ? 'ride' : /walk|hik/.test(tt) ? 'walk' : /run/.test(tt) ? 'run' : (S.filter in TYPES ? S.filter : 'run');
+  return { segs, name:nameEl ? nameEl.textContent.trim() : '', type };
+}
+async function importGpx(file){
+  try {
+    const g = parseGpx(await file.text()), t0 = g.segs[0][0][3];
+    if (liveActs().some(a => Math.abs(a.start - t0) < 1000)){ toast('That activity is already in Stride.'); return; }
+    const trk = encodeTrack(g.segs, t0);
+    const a = { id:newId(), type:g.type, name:g.name || defaultName(g.type, t0), notes:'', start:t0, trackRev:1, created:now(), imported:true };
+    restat(a, trk); putTrack(a.id, trk); saveAct(a, true);
+    if (S.settings.terrain && navigator.onLine) addTerrain(a.id, true);
+    toast(`Imported “${a.name}”.`); render(); openDetail(a.id);
+  } catch(e){ toast(e.message || 'Couldn’t import that file.', 5000); }
+}
+async function saveBackup(){
+  const missing = liveActs().filter(a => !getTrack(a.id) && a.stats?.dist > 0);
+  if (missing.length && store.user){ toast('Getting routes from the cloud…'); for (const a of missing) await fetchTrack(a.id); }
+  const tracks = {}; liveActs().forEach(a => { const t = getTrack(a.id); if (t) tracks[a.id] = t; });
+  const data = { app:APP, kind:'stride-backup', version:1, exportedAt:new Date().toISOString(), settings:S.settings, activities:liveActs(), tracks };
+  download(`stride-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data), 'application/json');
+  const still = liveActs().filter(a => !tracks[a.id] && a.stats?.dist > 0).length;
+  toast(still ? `Backup saved. ${still} route${still > 1 ? 's' : ''} couldn’t be included; sign in to fetch them.` : 'Backup saved.', still ? 5000 : 2500);
+}
+async function restoreBackup(file){
+  try {
+    const d = JSON.parse(await file.text());
+    if (!d || d.kind !== 'stride-backup' || !Array.isArray(d.activities)) throw new Error('That isn’t a Stride backup file.');
+    let added = 0, updated = 0;
+    for (const a of d.activities){
+      if (!a || !a.id || !TYPES[a.type]) continue;
+      const l = S.acts[a.id];
+      if (l && !l.deleted && (l.updatedAt || 0) >= (a.updatedAt || 0)) continue;
+      const t = d.tracks && d.tracks[a.id];
+      if (t) putTrack(a.id, t);
+      S.acts[a.id] = { ...a, updatedAt:now() };
+      if (t) markDirty('t_' + a.id);
+      markDirty('a_' + a.id);
+      l && !l.deleted ? updated++ : added++;
+    }
+    if (d.settings && typeof d.settings === 'object'){ S.settings = { ...DEFAULT_SETTINGS, ...d.settings }; S.settingsAt = now(); markDirty('settings'); }
+    saveLocal(); applyTheme(); render();
+    toast(`Restored: ${added} added, ${updated} updated.`);
+  } catch(e){ toast(e.message && e.message.startsWith('That') ? e.message : 'Couldn’t read that backup file.', 5000); }
+}
+
+/* ---------- toast ---------- */
+let toastT;
+function toast(msg, ms = 2600){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms); }
+
+/* ---------- events ---------- */
+document.addEventListener('click', e => {
+  const b = e.target.closest('button,[data-act]'); if (!b) return;
+  const d = b.dataset;
+  if (d.tab){ if (S.detail){ closeLayer(); } showTab(d.tab); return; }
+  if (d.open){ openDetail(d.open); return; }
+  if (d.filter){ S.filter = d.filter; renderList(); return; }
+  if (d.sfilter){ S.sfilter = d.sfilter; renderStats(); return; }
+  if (d.type && b.closest('#type-pick')){ if (rec) return; S.recType = d.type; S.settings.defType = d.type; saveLocal(); render(); renderRecMapTrack(); return; }
+  if (d.stype){ $$('#sheet [data-stype]').forEach(x => x.setAttribute('aria-checked', String(x === b))); return; }
+  if (d.set){ setSetting(d.set, d.val); return; }
+  if (d.toggle){ setSetting(d.toggle, !S.settings[d.toggle]); if (d.toggle === 'keepAwake' && rec){ S.settings.keepAwake ? wakeOn() : wakeOff(); } return; }
+  if (d.elesrc){ const a = S.acts[S.detail], trk = getTrack(S.detail); if (!a || !trk) return; a.eleSrc = d.elesrc; restat(a, trk); saveAct(a); renderDetail(); return; }
+  switch (d.act){
+    case 'start': startRec(); break;
+    case 'pause': pauseRec(); break;
+    case 'resume': resumeRec(); break;
+    case 'finish': openFinish(); break;
+    case 'lock': locked = true; renderControls(); toast('Buttons locked. Press and hold to unlock.'); break;
+    case 'keep-going': closeLayer(); resumeRec(); break;
+    case 'save-rec': { const n = $('#f-name').value.trim(), t = sheetType(), no = $('#f-notes').value.trim(); closeSheetNow(); history.replaceState({ layer:'detail' }, ''); saveRec(n, t, no); break; }
+    case 'discard':
+      if (b.dataset.armed){ closeSheetNow(); history.back(); discardRec(); }
+      else { b.dataset.armed = '1'; b.textContent = 'Tap again to discard'; b.classList.add('solid'); }
+      break;
+    case 'close-sheet': closeLayer(); break;
+    case 'back': closeLayer(); break;
+    case 'edit': openEdit(); break;
+    case 'save-edit': {
+      const a = S.acts[S.detail]; if (!a) break;
+      const t = sheetType(), typeChanged = t !== a.type;
+      a.name = $('#f-name').value.trim() || a.name; a.notes = $('#f-notes').value.trim(); a.type = t;
+      if (typeChanged){ const trk = getTrack(a.id); if (trk) restat(a, trk); }
+      saveAct(a); closeLayer(); renderDetail(); break;
+    }
+    case 'delete': openDelete(); break;
+    case 'confirm-delete': { const id = S.detail; closeSheetNow(); deleteAct(id); history.go(-2); setTimeout(() => { if (S.detail) closeDetailNow(); }, 300); toast('Activity deleted.'); break; }
+    case 'gpx': exportGpx(); break;
+    case 'terrain': toast('Getting terrain elevation…'); addTerrain(S.detail); break;
+    case 'import-gpx': $('#file-gpx').click(); break;
+    case 'backup': saveBackup(); break;
+    case 'restore': $('#file-backup').click(); break;
+    case 'signin': signIn(); break;
+    case 'signout': signOut(); break;
+    case 'gate-skip': gateSkipped = true; renderGate(); break;
+  }
+});
+$('#detail').addEventListener('scroll', () => { const t = $('#d-ttl'); if (t) t.style.opacity = $('#detail').scrollTop > 240 ? '1' : '0'; }, { passive:true });
+$('#recenter').addEventListener('click', () => { follow = !follow; renderRecenter(); if (follow) updateRecMap(); });
+$('#file-gpx').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) importGpx(f); });
+$('#file-backup').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) restoreBackup(f); });
+// press-and-hold to unlock the recording buttons
+let holdT = null;
+document.addEventListener('pointerdown', e => {
+  const h = e.target.closest('[data-hold]'); if (!h) return;
+  h.classList.add('pressing');
+  holdT = setTimeout(() => { locked = false; renderControls(); }, 1000);
+});
+['pointerup','pointercancel','pointerleave'].forEach(t => document.addEventListener(t, e => { if (holdT){ clearTimeout(holdT); holdT = null; } $$('.hold.pressing').forEach(x => x.classList.remove('pressing')); }, true));
+window.addEventListener('resize', () => { if (S.detail && dA) { clearTimeout(window._rz); window._rz = setTimeout(() => renderDetail(true), 200); } if (S.tab === 'stats') renderStats(); });
+
+/* ---------- start-up ---------- */
+history.replaceState({ layer:'root' }, '');
+restoreLive();
+applyTheme();
+renderRecenter();
+showTab('record');
+if (rec){ startWatch(); wakeOn(); startTick(); }
+initCloud();
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+window.__stride = { S, store, analyze, encodeTrack, decodeTrack, get rec(){ return rec; } };
+</script>
+</body>
+</html>
