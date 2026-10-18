@@ -2,7 +2,7 @@
   "name": "Stride",
   "short_name": "Stride",
   "description": "Record runs, rides and walks with GPS: route map, pace, speed, splits and elevation.",
-  "id": "./",
+  "id": "/stride/",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",

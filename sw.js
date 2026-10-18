@@ -1,7 +1,7 @@
 // Offline support for Stride.
 // The page is fetched fresh when online (so updates arrive) and served from cache when offline.
 // Bump APP_CACHE on every release.
-const APP_CACHE = 'stride-app-v1';
+const APP_CACHE = 'stride-app-v2';
 const FONT_CACHE = 'stride-fonts-v1';
 const LIB_CACHE = 'stride-libs-v1';
 const TILE_CACHE = 'stride-tiles-v1';
@@ -74,6 +74,12 @@ self.addEventListener('fetch', event => {
     return;
   }
   if (url.origin !== self.location.origin) return;
+
+  // The manifest: network first too, so changes to the app's identity or icons arrive straight away.
+  if (url.pathname.endsWith('/manifest.webmanifest')) {
+    event.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(APP_CACHE).then(c => c.put(req, copy)); return res; }).catch(() => caches.match(req)));
+    return;
+  }
 
   // The page itself: network first, cache when offline.
   if (req.mode === 'navigate') {
