@@ -10,7 +10,8 @@ FAILED=0
 ok(){ echo "SMOKE ok - $*"; }
 bad(){ echo "SMOKE FAIL - $*"; FAILED=1; }
 shot(){ adb exec-out screencap -p > "$D/$1.png"; }
-dump(){ adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb pull /sdcard/ui.xml "$D/$1.xml" >/dev/null 2>&1; python3 app/smoke-tap.py "$D/$1.xml" texts > "$D/$1.txt" 2>/dev/null || true; }
+# uiautomator occasionally returns an empty or failed dump, so try a few times
+dump(){ for try in 1 2 3 4; do rm -f "$D/$1.xml"; adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb pull /sdcard/ui.xml "$D/$1.xml" >/dev/null 2>&1; python3 app/smoke-tap.py "$D/$1.xml" texts > "$D/$1.txt" 2>/dev/null || true; [ -s "$D/$1.txt" ] && return 0; sleep 2; done; }
 tap(){ dump "tap-$2"; local xy; xy=$(python3 app/smoke-tap.py "$D/tap-$2.xml" tap "$1") || { bad "couldn't find \"$1\" on screen"; return 1; }; adb shell input tap $xy; }
 LAT=51.50000; LNG=-0.10000
 fix(){ adb emu geo fix "$LNG" "$LAT" 30 >/dev/null; }
@@ -23,7 +24,7 @@ for i in 1 2 3; do fix; sleep 1; done
 adb shell am start -W -n $PKG/.MainActivity >/dev/null
 sleep 25
 shot 1-launch; dump 1-launch
-grep -qx "Stride" "$D/1-launch.txt" && ok "app shows the sign-in screen" || bad "sign-in screen not found"
+grep -qx "Not now" "$D/1-launch.txt" && ok "app shows the sign-in screen" || bad "sign-in screen not found"
 tap "Not now" gate && sleep 3
 shot 2-record; dump 2-record
 grep -q "GPS ±" "$D/2-record.txt" && ok "GPS fix shown" || bad "no GPS fix shown"
