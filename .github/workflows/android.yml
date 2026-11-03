@@ -55,6 +55,24 @@ jobs:
       - name: Build APK
         run: bash app/build-android.sh "${{ github.run_number }}" 2>&1 | tee "$RUNNER_TEMP/build.log"
 
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Test on an Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          SMOKE_DIR: ${{ runner.temp }}/smoke
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: bash app/smoke-test.sh
+
       - name: Publish release
         if: env.PUBLISH == 'true'
         env:
@@ -71,6 +89,8 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/logs" && cd "$RUNNER_TEMP/logs"
           cp "$RUNNER_TEMP/build.log" build.log 2>/dev/null || echo "(no build log)" > build.log
+          cp "$RUNNER_TEMP/smoke.log" smoke.log 2>/dev/null || true
+          cp -r "$RUNNER_TEMP/smoke" smoke 2>/dev/null || true
           printf 'run %s\ncommit %s\nstatus %s\npublished %s\n' "${{ github.run_number }}" "${{ github.sha }}" "${{ job.status }}" "${PUBLISH:-false}" > status.txt
           git init -q -b ci-logs
           git add -A

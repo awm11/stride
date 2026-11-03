@@ -13,3 +13,6 @@ echo "== cap sync"; npx cap sync android
 echo "== gradle"; cd android && chmod +x gradlew && ./gradlew --no-daemon --stacktrace --warning-mode=summary assembleRelease
 cp app/build/outputs/apk/release/app-release.apk ../stride.apk
 echo "== done: $(ls -l ../stride.apk)"
+BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+echo "== apk"; "$BT/aapt2" dump badging ../stride.apk | grep -E "^package|^sdkVersion|^targetSdkVersion|^application-label:|uses-permission" || true
+"$BT/apksigner" verify --print-certs ../stride.apk | grep -E "SHA-256|Signer #1 certificate DN" || true
