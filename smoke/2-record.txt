@@ -1,0 +1,33 @@
+Stride
+Record
+© OpenStreetMap contributors
+©
+OpenStreetMap
+OpenStreetMap
+contributors
+Activity type
+Run
+Ride
+Walk
+Swim
+GPS ±5 m
+Keep map centred on me
+0.00
+km
+0:00
+Time
+–:––
+Pace /km
+–:––
+Avg pace /km
+0
+Climb m
+12
+Elevation m
+Start
+Recording carries on with the screen off
+Record
+Plan
+Activities
+Stats
+You
