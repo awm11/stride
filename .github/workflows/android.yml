@@ -77,7 +77,12 @@ jobs:
         if: env.PUBLISH == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          # Public fingerprint of Stride's signing certificate; refuse to publish anything signed differently.
+          EXPECTED_CERT: d1ead4ced85cb5046f9c2778ed2f809e9b90a569d861f6e12e4f63b756b09293
         run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/apksigner" verify --print-certs app/stride.apk | grep -qi "SHA-256 digest: $EXPECTED_CERT" \
+            || { echo "::error::APK is not signed with Stride's key; not publishing."; exit 1; }
           gh release create "android-${{ github.run_number }}" app/stride.apk \
             --title "Stride for Android (build ${{ github.run_number }})" \
             --notes "Open this page on your Android phone and download **stride.apk**, then open the downloaded file to install it. If Android asks, allow your browser to install apps. Installing a newer build over an older one keeps your activities." \
