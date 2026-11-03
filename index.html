@@ -213,7 +213,13 @@ textarea.t{min-height:90px;resize:vertical}
 #gate h1{font-family:var(--cond);font-size:56px;margin:14px 0 6px}
 #gate p{color:var(--ink2);margin:0 0 26px}
 #gate .btn{width:100%;margin-bottom:10px;min-height:58px;font-size:18px}
-#gate .msg{color:var(--danger);min-height:1.4em;font-size:15px}
+#gate .msg,#appsign .msg{color:var(--danger);min-height:1.4em;font-size:15px}
+#appsign{position:fixed;inset:0;z-index:5000;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:32px 24px;text-align:center}
+#appsign .inner{max-width:380px;width:100%}
+#appsign img{width:96px;height:96px;border-radius:22px}
+#appsign h1{font-family:var(--cond);font-size:56px;margin:14px 0 6px}
+#appsign p{color:var(--ink2);margin:0 0 22px}
+#appsign .btn{width:100%;min-height:58px;font-size:18px;margin-bottom:10px;text-decoration:none}
 #toast{position:fixed;left:50%;bottom:calc(var(--tabh) + var(--safe-b) + 14px);transform:translateX(-50%);z-index:4000;background:var(--ink);color:var(--surface);padding:12px 18px;border-radius:14px;font-weight:500;max-width:min(92vw,480px);box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.show{opacity:1}
 
@@ -288,6 +294,7 @@ textarea.t{min-height:90px;resize:vertical}
     <div class="msg" id="gate-msg"></div>
   </div>
 </div>
+<div id="appsign" hidden><div class="inner"></div></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <input type="file" id="file-gpx" accept=".gpx,application/gpx+xml,application/xml,text/xml" hidden>
 <input type="file" id="file-backup" accept=".json,application/json" hidden>
@@ -306,6 +313,17 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const now = () => Date.now();
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ---------- Android app (Capacitor) or browser ---------- */
+// In the Android app, Capacitor's bridge provides native plugins; in a browser these are null and the web APIs are used.
+const CAP = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ? window.Capacitor : null;
+const NATIVE_BUILD = 0;                                        // set by the Android build
+const NP = CAP ? ['BackgroundGeolocation', 'App', 'Browser', 'TextToSpeech', 'LocalNotifications', 'Filesystem', 'Share']
+  .reduce((o, n) => (o[n] = CAP.registerPlugin(n), o), {}) : null;
+const WEB_URL = 'https://alexmoorephysics.com/stride/';
+const APK_URL = 'https://github.com/awm11/stride/releases/latest/download/stride.apk';
+const APP_SCHEME = 'com.alexmoorephysics.stride';
+const APP_SIGNIN = !CAP && new URLSearchParams(location.search).has('app-signin');   // this page is signing in for the Android app
 
 const I = {
   rec:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>',
@@ -682,7 +700,7 @@ async function prefetchTracks(){
 let gateSkipped = false;
 function renderGate(){
   const g = $('#gate');
-  g.hidden = !(store.authKnown && !store.user && !gateSkipped && !rec);
+  g.hidden = !(store.authKnown && !store.user && !gateSkipped && !rec && !APP_SIGNIN);
   $('#gate-msg').textContent = S.signinMsg || '';
 }
 function setUser(u){
@@ -691,7 +709,7 @@ function setUser(u){
   if (store.unsubS){ store.unsubS(); store.unsubS = null; }
   store.user = u || null; store.ready = false; store.first = {};
   S.account = u ? { name:u.displayName || '', email:u.email || '' } : null;
-  renderGate();
+  renderGate(); renderAppSign();
   if (!u){ setSync('local'); render(); return; }
   setSync('syncing'); render();
   const err = e => setSync('error', e && e.code === 'permission-denied' ? 'The cloud refused access. Check the Firestore rules, or sign out and in again.' : 'Couldn’t reach the cloud. Your activities are safe on this phone.');
@@ -703,15 +721,65 @@ async function initCloud(){
     const [appM, authM, fsM] = await Promise.all(['app', 'auth', 'firestore'].map(n => import(FB_URL + 'firebase-' + n + '.js')));
     store.m = { ...authM, ...fsM };
     const app = appM.initializeApp(FIREBASE_CONFIG, 'stride');
-    store.auth = authM.getAuth(app);
+    store.auth = CAP ? authM.initializeAuth(app, { persistence:[authM.indexedDBLocalPersistence, authM.browserLocalPersistence] }) : authM.getAuth(app);
     store.db = fsM.initializeFirestore(app, { ignoreUndefinedProperties:true });
-    authM.getRedirectResult(store.auth).catch(() => { S.signinMsg = 'Sign-in didn’t finish. Try again.'; renderGate(); if (S.tab === 'you') renderYou(); });
+    if (!CAP) authM.getRedirectResult(store.auth).then(r => { if (r && APP_SIGNIN) handBack(r); })
+      .catch(() => { S.signinMsg = 'Sign-in didn’t finish. Try again.'; renderGate(); if (S.tab === 'you') renderYou(); renderAppSign(); });
     authM.onAuthStateChanged(store.auth, setUser);
-  } catch(e){ store.failed = true; if (S.tab === 'you') renderYou(); }
+    if (pendingToken){ const t = pendingToken; pendingToken = null; signInWithToken(t); }
+  } catch(e){ store.failed = true; if (S.tab === 'you') renderYou(); renderAppSign(); }
+}
+// Google won't sign in inside an app's built-in web view, so the app opens this site in a browser tab
+// (?app-signin=1). That page signs in with Google and hands the Google ID token back to the app through
+// a com.alexmoorephysics.stride:// link; the app then signs in to Firebase with it.
+let pendingToken = null;
+async function signInWithToken(tok){
+  if (!store.auth){ pendingToken = tok; return; }
+  try { await store.m.signInWithCredential(store.auth, store.m.GoogleAuthProvider.credential(tok)); S.signinMsg = null; toast('Signed in.'); }
+  catch(e){ S.signinMsg = 'Sign-in didn’t finish. Try again.'; }
+  renderGate(); if (S.tab === 'you') renderYou();
+}
+function onAppUrl(url){
+  if (!url || !url.startsWith(APP_SCHEME + '://signin')) return;
+  NP.Browser.close().catch(() => {});
+  const tok = new URLSearchParams(url.split('#')[1] || '').get('id_token');
+  if (tok) signInWithToken(tok);
+}
+let appSign = { state:'ready', msg:'' };
+function renderAppSign(){
+  const el = $('#appsign'); if (!el) return;
+  el.hidden = !APP_SIGNIN; if (!APP_SIGNIN) return;
+  const st = appSign.state;
+  el.querySelector('.inner').innerHTML = `<img src="icons/icon-192.png" alt=""><h1>Stride</h1>` + (st === 'done'
+    ? `<p>Signed in as ${esc(appSign.email)}.</p><a class="btn primary" href="${esc(appSign.link)}">Return to the Stride app</a><p class="note">If the app doesn’t open, tap the button above.</p>`
+    : `<p>Sign in with Google to back up the Stride app on this phone.</p><button class="btn primary" data-act="app-signin" ${st === 'busy' || !store.auth ? 'disabled' : ''}>${st === 'busy' ? 'Signing in…' : 'Sign in with Google'}</button><div class="msg">${esc(appSign.msg || (store.failed ? 'Sign-in isn’t available right now. Check your signal.' : ''))}</div>`);
+}
+async function appSignIn(){
+  appSign = { state:'busy', msg:'' }; renderAppSign();
+  const provider = new store.m.GoogleAuthProvider();
+  provider.setCustomParameters({ prompt:'select_account' });
+  try { handBack(await store.m.signInWithPopup(store.auth, provider)); }
+  catch(e){
+    const c = e && e.code;
+    if (c === 'auth/popup-blocked' || c === 'auth/operation-not-supported-in-this-environment'){ try { await store.m.signInWithRedirect(store.auth, provider); return; } catch(_) {} }
+    appSign = { state:'ready', msg:(c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') ? '' : 'Sign-in didn’t work. Try again.' }; renderAppSign();
+  }
+}
+function handBack(result){
+  const cred = store.m.GoogleAuthProvider.credentialFromResult(result);
+  if (!cred || !cred.idToken){ appSign = { state:'ready', msg:'Sign-in didn’t work. Try again.' }; renderAppSign(); return; }
+  appSign = { state:'done', email:(result.user && result.user.email) || '', link:`${APP_SCHEME}://signin#id_token=${encodeURIComponent(cred.idToken)}` };
+  renderAppSign();
+  try { location.href = appSign.link; } catch(e) {}
 }
 async function signIn(){
   if (!store.auth){ S.signinMsg = navigator.onLine ? 'Sign-in isn’t available right now. Try again in a moment.' : 'You’re offline. Sign in when you have a signal.'; renderGate(); if (S.tab === 'you') renderYou(); return; }
   S.signinMsg = null; renderGate();
+  if (NP){
+    try { await NP.Browser.open({ url:WEB_URL + '?app-signin=1' }); }
+    catch(e){ S.signinMsg = 'Couldn’t open the sign-in page. Try again.'; renderGate(); if (S.tab === 'you') renderYou(); }
+    return;
+  }
   const provider = new store.m.GoogleAuthProvider();
   provider.setCustomParameters({ prompt:'select_account' });
   try { await store.m.signInWithPopup(store.auth, provider); }
@@ -786,11 +854,32 @@ async function addTerrain(id, quiet){
 
 /* ---------- live recording ---------- */
 let rec = null, watchId = null, fix = null, tick = null, wake = null, persistT = 0, follow = true, locked = false;
+let watchBg = false, watchGen = 0;
 function startWatch(){
+  if (APP_SIGNIN) return;                 // the sign-in page for the app has no use for GPS
+  if (NP){
+    // While recording, the watcher runs as a foreground service with a notification, so GPS keeps going with the screen off.
+    const bg = !!rec;
+    if (watchId != null && watchBg === bg) return;
+    stopWatch();
+    const gen = ++watchGen; watchBg = bg; watchId = 'pending';
+    const opts = { requestPermissions:true, stale:false, distanceFilter:0 };
+    if (bg){ opts.backgroundTitle = `Stride is recording your ${TYPES[rec.type].name.toLowerCase()}`; opts.backgroundMessage = 'Open Stride to pause or finish.'; }
+    NP.BackgroundGeolocation.addWatcher(opts, (loc, err) => {
+      if (gen !== watchGen) return;
+      if (err){ onPosErr({ code:err.code === 'NOT_AUTHORIZED' ? 1 : 2 }); return; }
+      if (loc) onPos({ coords:{ latitude:loc.latitude, longitude:loc.longitude, altitude:loc.altitude, accuracy:loc.accuracy } });
+    }).then(id => { if (gen === watchGen) watchId = id; else NP.BackgroundGeolocation.removeWatcher({ id }).catch(() => {}); })
+      .catch(() => { if (gen === watchGen){ watchId = null; onPosErr({ code:2 }); } });
+    return;
+  }
   if (watchId != null || !navigator.geolocation) return;
   watchId = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy:true, maximumAge:0, timeout:30000 });
 }
-function stopWatch(){ if (watchId != null){ navigator.geolocation.clearWatch(watchId); watchId = null; } }
+function stopWatch(){
+  if (NP){ watchGen++; const id = watchId; watchId = null; if (id != null && id !== 'pending') NP.BackgroundGeolocation.removeWatcher({ id }).catch(() => {}); return; }
+  if (watchId != null){ navigator.geolocation.clearWatch(watchId); watchId = null; }
+}
 function onPos(pos){
   const c = pos.coords;
   fix = { lat:c.latitude, lng:c.longitude, alt:(c.altitude == null || isNaN(c.altitude)) ? null : c.altitude, acc:c.accuracy || 999, t:now() };
@@ -881,11 +970,13 @@ function checkSplit(){
 }
 const spoken = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? `${h} hour${h > 1 ? 's' : ''} ` : '') + (m ? `${m} minute${m !== 1 ? 's' : ''} ` : '') + `${x} second${x !== 1 ? 's' : ''}`; };
 function speak(text){
-  if (!S.settings.voice || !('speechSynthesis' in window)) return;
+  if (!S.settings.voice) return;
+  if (NP){ NP.TextToSpeech.speak({ text, lang:'en-GB', rate:1.0 }).catch(() => {}); return; }
+  if (!('speechSynthesis' in window)) return;
   try { const u = new SpeechSynthesisUtterance(text); u.lang = 'en-GB'; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch(e) {}
 }
 async function wakeOn(){
-  if (!S.settings.keepAwake || !('wakeLock' in navigator) || wake) return;
+  if (NP || !S.settings.keepAwake || !('wakeLock' in navigator) || wake) return;   // the app keeps recording with the screen off
   try { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } catch(e) { wake = null; }
 }
 function wakeOff(){ if (wake){ wake.release().catch(() => {}); wake = null; } }
@@ -934,13 +1025,15 @@ function applyOffset(off){
   rec.off = off; rec.cal = true;
 }
 function startRec(){
-  if (!navigator.geolocation){ toast('This browser can’t share your location, so it can’t record.'); return; }
+  if (!NP && !navigator.geolocation){ toast('This browser can’t share your location, so it can’t record.'); return; }
   if (S.gpsErr === 'denied'){ toast('Location is blocked for this app. Allow it in your phone’s settings, then try again.', 5000); return; }
   const t = now();
   rec = { id:newId(), type:S.recType, t0:t, spans:[[t, null]], segs:[[]], dist:0, gain:0, ema:null, ref:null, off:eleOff || 0, cal:eleOff != null, splitN:0, splitT:0, paused:false };
   if (fix && fix.acc <= 50 && t - fix.t < 5000) addPoint({ ...fix, t });
   follow = true; locked = false;
-  startWatch(); wakeOn(); persistLive(); calibrate(); startTick();
+  if (NP) NP.LocalNotifications.requestPermissions().catch(() => {}).finally(startWatch);   // Android 13+ needs this for the recording notification
+  else startWatch();
+  wakeOn(); persistLive(); calibrate(); startTick();
   speak(`${TYPES[rec.type].name} started`);
   render();
 }
@@ -950,7 +1043,7 @@ function startTick(){ clearInterval(tick); tick = setInterval(() => { renderLive
 function endRecording(){
   rec = null; locked = false; localStorage.removeItem(LIVE);
   clearInterval(tick); tick = null; wakeOff();
-  if (S.tab !== 'record') stopWatch();
+  if (S.tab !== 'record') stopWatch(); else if (NP) startWatch();   // app: drop back to an on-screen-only watcher
   renderRecMapTrack();
 }
 function saveRec(name, type, notes){
@@ -1090,7 +1183,7 @@ function renderLive(){
   chip.className = 'gps ' + cls; chip.lastElementChild.textContent = txt;
   // banner
   let b = '';
-  if (rec && rec.lastGap && now() - rec.lastGap.at < 300000) b = `GPS was off for ${fmtGap(rec.lastGap.s)} while the screen was off, so that stretch is a straight line. Keep Stride on screen while you record.`;
+  if (rec && rec.lastGap && now() - rec.lastGap.at < 300000) b = NP ? `GPS was lost for ${fmtGap(rec.lastGap.s)}, so that stretch is a straight line.` : `GPS was off for ${fmtGap(rec.lastGap.s)} while the screen was off, so that stretch is a straight line. Keep Stride on screen while you record.`;
   else if (rec && rec.restored) b = 'Recording restored. GPS stops while the app is closed, so that stretch will be a straight line.';
   else if (!rec && S.gpsErr === 'denied') b = 'Location is blocked. Allow location for this app in your phone’s settings to record.';
   const bn = $('#live-banner'); if (bn.dataset.t !== b){ bn.dataset.t = b; bn.innerHTML = b ? `<p class="banner">${esc(b)}</p>` : ''; }
@@ -1206,7 +1299,7 @@ function renderYou(){
     <p class="note">Contours shows hills and terrain; it zooms in a little less far.</p></div>
   <div class="card"><h3>While recording</h3>
     ${sw('voice', 'Spoken updates', `Time and pace every ${u.dn}`)}
-    ${sw('keepAwake', 'Keep screen on', 'Phones pause web-app GPS when the screen locks')}
+    ${NP ? '' : sw('keepAwake', 'Keep screen on', 'Phones pause web-app GPS when the screen locks')}
     ${sw('terrain', 'Correct elevation with terrain data', 'Uses free Open-Meteo data when you have a signal')}
   </div>
   <div class="card"><h3>Backup file</h3>
@@ -1214,8 +1307,12 @@ function renderYou(){
     <div class="btnrow"><button class="btn" data-act="backup">${I.down}Save backup</button><button class="btn" data-act="restore">${I.upload}Restore</button></div>
     <button class="btn block" style="margin-top:10px" data-act="import-gpx">${I.upload}Import a GPX file</button>
   </div>
+  ${NP ? `<div class="card"><h3>Stride for Android</h3><p class="note" style="margin:0">Build ${NATIVE_BUILD || 'dev'}. ${S.update ? 'A newer version is ready.' : 'You have the latest version.'}</p>
+    ${S.update ? `<button class="btn primary block" style="margin-top:10px" data-act="get-update">${I.down}Download the update</button><p class="note">Open the downloaded file to install it over this one. Your activities stay put.</p>` : ''}</div>`
+  : (S.apk ? `<div class="card"><h3>Record with the screen off</h3><p class="note" style="margin:0">Browsers stop GPS when your screen turns off. The Stride Android app keeps recording in your pocket, and syncs with this version when you’re signed in to both.</p>
+    <a class="btn primary block" style="margin-top:10px" href="${APK_URL}">${I.down}Get the Android app</a></div>` : '')}
   <div class="card"><h3>Good to know</h3>
-    <p class="note" style="margin:0">Phones only let web apps use GPS while they’re on screen, so keep Stride open while you record. Lock the buttons with the padlock so a pocket tap doesn’t pause you.</p>
+    <p class="note" style="margin:0">${NP ? 'Stride keeps recording with the screen off and shows a notification while it does. Don’t swipe Stride away from your recent apps mid-recording, as that stops it.' : 'Phones only let web apps use GPS while they’re on screen, so keep Stride open while you record.'} Lock the buttons with the padlock so a pocket tap doesn’t pause you.</p>
     <p class="note">Routes stored on this phone: ${cached} of ${liveActs().length} (${(used / 1024 / 1024 * 2).toFixed(1)} MB). Older routes that are backed up are removed from the phone if space runs low, and come back from the cloud when you open them.</p>
     <p class="note">Stride ${VERSION}. Maps &copy; OpenStreetMap contributors and OpenTopoMap. Elevation data from Open-Meteo.</p>
   </div></div>`;
@@ -1324,7 +1421,7 @@ async function renderDetail(fromRemote){
         <div class="m"><b class="num">${fmtEle(st.gain)}</b><small>Climb ${u.el}</small></div>
         ${st.eleMax != null ? `<div class="m"><b class="num">${fmtEle(st.eleMax)}</b><small>Highest ${u.el}</small></div><div class="m"><b class="num">${fmtEle(st.eleMin)}</b><small>Lowest ${u.el}</small></div><div class="m"><b class="num">${fmtEle(st.loss)}</b><small>Descent ${u.el}</small></div>` : ''}
       </div>
-      ${(st.gapTime || 0) >= 60 ? `<p class="banner">GPS was off for ${fmtGap(st.gapTime)} of this ${esc(T.name.toLowerCase())}, usually because the screen was off. Those stretches are drawn dashed and measured as straight lines, so the real distance was probably longer.</p>` : ''}
+      ${(st.gapTime || 0) >= 60 ? `<p class="banner">GPS was missing for ${fmtGap(st.gapTime)} of this ${esc(T.name.toLowerCase())}, usually because the screen was off while recording in the browser. Those stretches are drawn dashed and measured as straight lines, so the real distance was probably longer.</p>` : ''}
       <div id="d-trackparts"></div>
       ${bests.length ? `<div class="card"><h3>Fastest efforts</h3><table class="pbs">${bests.map(([D, label]) => `<tr><td><b>${label}</b></td><td class="v">${fmtDur(st.best[D])}<div class="d">${a.type === 'ride' ? fmtSpeed(D / st.best[D]) + ' ' + u.sp : fmtPace(paceOf(D, st.best[D])) + ' /' + u.dl}</div></td></tr>`).join('')}</table></div>` : ''}
       ${a.notes ? `<div class="card"><h3>Notes</h3><div class="notes">${esc(a.notes)}</div></div>` : ''}
@@ -1441,7 +1538,15 @@ function openDelete(){
 const sheetType = () => { const b = $('#sheet [aria-checked="true"][data-stype]'); return b ? b.dataset.stype : 'run'; };
 
 /* ---------- files: GPX and backups ---------- */
-function download(name, text, mime){
+async function download(name, text, mime){
+  if (NP){
+    // The app's web view can't save downloads, so write the file and offer Android's share sheet (Files, Drive, email…).
+    try {
+      const r = await NP.Filesystem.writeFile({ path:name, data:text, directory:'CACHE', encoding:'utf8' });
+      await NP.Share.share({ title:name, files:[r.uri], dialogTitle:'Save or send ' + name });
+    } catch(e){ if (!/cancel/i.test(String(e && (e.message || e)))) toast('Couldn’t save that file.'); }
+    return;
+  }
   const blob = new Blob([text], { type:mime }), url = URL.createObjectURL(blob), a = document.createElement('a');
   a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
@@ -1569,6 +1674,8 @@ document.addEventListener('click', e => {
     case 'signin': signIn(); break;
     case 'signout': signOut(); break;
     case 'gate-skip': gateSkipped = true; renderGate(); break;
+    case 'app-signin': appSignIn(); break;
+    case 'get-update': NP.Browser.open({ url:APK_URL }).catch(() => {}); break;
   }
 });
 $('#detail').addEventListener('scroll', () => { const t = $('#d-ttl'); if (t) t.style.opacity = $('#detail').scrollTop > 240 ? '1' : '0'; }, { passive:true });
@@ -1593,8 +1700,31 @@ renderRecenter();
 showTab('record');
 if (rec){ startWatch(); wakeOn(); startTick(); }
 initCloud();
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
-window.__stride = { S, store, analyze, encodeTrack, decodeTrack, fitForCloud, getTrack, get rec(){ return rec; } };
+renderAppSign();
+if (!CAP && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+if (NP){
+  NP.App.addListener('appUrlOpen', e => onAppUrl(e && e.url));
+  NP.App.getLaunchUrl().then(r => r && onAppUrl(r.url)).catch(() => {});
+  NP.App.addListener('backButton', () => {
+    if (!$('#sheet-wrap').hidden || S.detail) history.back();
+    else if (S.tab !== 'record') showTab('record');
+    else NP.App.minimizeApp().catch(() => {});
+  });
+}
+// Is there a newer Android build (in the app), or an Android app to offer (on Android in the browser)?
+async function checkApp(){
+  if (!(NP ? NATIVE_BUILD : /Android/i.test(navigator.userAgent)) || !navigator.onLine || APP_SIGNIN) return;
+  try {
+    const r = await fetch('https://api.github.com/repos/awm11/stride/releases/latest', { headers:{ Accept:'application/vnd.github+json' } });
+    if (!r.ok) return;
+    const n = parseInt(String((await r.json()).tag_name || '').replace(/\D+/g, ''), 10);
+    if (NP){ if (n > NATIVE_BUILD){ S.update = n; toast('A new version of Stride is ready. Get it from the You tab.', 4000); } }
+    else if (n > 0) S.apk = true;
+    if (S.tab === 'you') renderYou();
+  } catch(e) {}
+}
+setTimeout(checkApp, 3000);
+window.__stride = { S, store, NP, analyze, encodeTrack, decodeTrack, fitForCloud, getTrack, get rec(){ return rec; } };
 </script>
 </body>
 </html>

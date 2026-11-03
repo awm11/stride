@@ -1,0 +1,9 @@
+{
+  "appId": "com.alexmoorephysics.stride",
+  "appName": "Stride",
+  "webDir": "www",
+  "backgroundColor": "#0e1418",
+  "android": {
+    "useLegacyBridge": true
+  }
+}

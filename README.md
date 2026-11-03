@@ -17,9 +17,18 @@ Everything it uses is free: OpenStreetMap and OpenTopoMap for maps, Leaflet for 
 
 The first time you press Start, allow location access.
 
+## The Android app
+
+Phones stop giving web pages GPS when the screen turns off, so for recording with your phone in your pocket there's an Android version of the same app. It uses a free background-location service and shows a notification while it records.
+
+- **Install:** on your phone, open <https://github.com/awm11/stride/releases/latest/download/stride.apk>, then open the downloaded file. If Android asks, allow your browser to install apps.
+- **Sign in:** tap Sign in with Google. A browser tab opens, you sign in there, then tap **Return to the Stride app**.
+- **Updates:** the app tells you on the You tab when a newer build is ready; install it over the old one and your activities stay.
+- **How it's built:** `app/` wraps `index.html` with [Capacitor](https://capacitorjs.com). Every push to `main` that touches the app runs `.github/workflows/android.yml`, which builds a signed APK and publishes it as a release. The signing key lives in the `ANDROID_KEYSTORE` repository secret; keep a copy somewhere safe, because updates only install when they're signed with the same key.
+
 ## Recording tips
 
-- Phones only give web apps GPS while they're on screen, so keep Stride open while you record. The screen stays on by default (You → Keep screen on).
+- In the browser version, phones only give GPS while Stride is on screen, so keep it open (the screen stays on by default). The Android app records with the screen off. Any stretch without GPS is drawn dashed.
 - Tap the padlock to lock the buttons so a pocket tap can't pause you; press and hold to unlock.
 - If the app is closed mid-recording, reopening it carries on where it left off (the closed stretch is skipped).
 - Spoken updates give your time and pace at each kilometre or mile.

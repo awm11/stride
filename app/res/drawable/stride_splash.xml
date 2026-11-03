@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launch screen: Stride's dark background with the app icon in the middle. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item><color android:color="#0E1418"/></item>
+    <item android:gravity="center" android:width="112dp" android:height="112dp" android:drawable="@mipmap/ic_launcher"/>
+</layer-list>
