@@ -347,6 +347,7 @@ const fmtDur = s => {
 const paceOf = (m, s) => (m > 0 && s > 0) ? s / (m / U().d) : Infinity;   // seconds per km/mi
 const fmtPace = p => (!isFinite(p) || p <= 0 || p > 5999) ? '–:––' : fmtDur(p);
 const fmtSpeed = mps => (isFinite(mps) && mps > 0) ? (mps * U().sps).toFixed(1) : '0.0';
+const fmtGap = s => s < 90 ? `${Math.round(s)} seconds` : `${Math.round(s / 60)} minutes`;
 const fmtEle = m => (m == null || !isFinite(m)) ? '–' : String(Math.round(m / U().e));
 const DF = new Intl.DateTimeFormat('en-GB', { weekday:'short', day:'numeric', month:'short' });
 const DFY = new Intl.DateTimeFormat('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
@@ -577,10 +578,12 @@ async function writeDoc(id){
 function fitForCloud(trk){
   let t = trk, guard = 0;
   while (JSON.stringify(t).length > 900000 && guard++ < 6){
-    const segs = decodeTrack(t).map(s => s.filter((p, i) => i % 2 === 0 || i === s.length - 1));
+    const gs = gapSetOf(t), full = decodeTrack(t);
+    const keep = (s, i) => i % 2 === 0 || i === s.length - 1 || gs.has(gapKey(t.t0, s[i][3])) || (i + 1 < s.length && gs.has(gapKey(t.t0, s[i + 1][3])));
+    const segs = full.map(s => s.filter((p, i) => keep(s, i)));
     const dem = t.dem ? decFlat(t.dem) : null; let thinDem = null;
-    if (dem){ thinDem = []; let o = 0; decodeTrack(t).forEach(s => { s.forEach((p, i) => { if (i % 2 === 0 || i === s.length - 1) thinDem.push(dem[o + i]); }); o += s.length; }); }
-    t = { ...encodeTrack(segs, t.t0, t.dur), dem:thinDem ? encFlat(thinDem) : null, rev:t.rev };
+    if (dem){ thinDem = []; let o = 0; full.forEach(s => { s.forEach((p, i) => { if (keep(s, i)) thinDem.push(dem[o + i]); }); o += s.length; }); }
+    t = { ...encodeTrack(segs, t.t0, t.dur), dem:thinDem ? encFlat(thinDem) : null, rev:t.rev, ...(t.gaps ? { gaps:t.gaps } : {}) };
   }
   return t;
 }
@@ -740,6 +743,7 @@ function eleArrFor(a, trk){ return (a.eleSrc !== 'gps' && trk && trk.dem) ? decF
 function restat(a, trk){
   const segs = decodeTrack(trk);
   const A = analyze(segs, a.type, eleArrFor(a, trk), trk.dur);
+  A.stats.gapTime = gapSecondsOf(segs, gapSetOf(trk), trk.t0);
   a.stats = A.stats; a.pv = previewOf(segs);
   return A;
 }
@@ -799,6 +803,33 @@ function onPos(pos){
 }
 function onPosErr(e){ S.gpsErr = e && e.code === 1 ? 'denied' : 'searching'; renderLive(); }
 const curSeg = () => rec.segs[rec.segs.length - 1];
+// A GPS gap is any stretch longer than this with no fixes while recording (phones stop web-app GPS when the screen is off).
+const GAP_S = 20;
+const gapKey = (t0, t) => Math.round((t - t0) / 100);          // same 0.1 s grid the track is stored on
+const gapSetOf = trk => new Set((trk && Array.isArray(trk.gaps)) ? trk.gaps : []);
+// Split segments into solid runs and dashed gap links.
+function routePieces(segs, gs, t0){
+  const solid = [], dashed = [];
+  for (const sg of segs){
+    let run = [];
+    sg.forEach((p, i) => {
+      if (i && gs.has(gapKey(t0, p[3]))){ if (run.length > 1) solid.push(run); dashed.push([[sg[i-1][0], sg[i-1][1]], [p[0], p[1]]]); run = []; }
+      run.push([p[0], p[1]]);
+    });
+    if (run.length > 1) solid.push(run);
+  }
+  return { solid, dashed };
+}
+function drawRoute(map, segs, gs, t0, col){
+  const { solid, dashed } = routePieces(segs, gs, t0), out = [];
+  dashed.forEach(ll => { out.push(L.polyline(ll, { color:col, weight:4, opacity:.85, dashArray:'2 10', lineCap:'round', interactive:false }).addTo(map)); });
+  solid.forEach(ll => { out.push(L.polyline(ll, { color:'#fff', weight:9, opacity:.9, interactive:false }).addTo(map)); out.push(L.polyline(ll, { color:col, weight:5, interactive:false }).addTo(map)); });
+  return out;
+}
+function gapSecondsOf(segs, gs, t0){
+  let g = 0; for (const sg of segs) for (let i = 1; i < sg.length; i++) if (gs.has(gapKey(t0, sg[i][3]))) g += (sg[i][3] - sg[i-1][3]) / 1000;
+  return Math.round(g);
+}
 function addPoint(f){
   if (f.acc > 50) return;                                 // too vague to use
   const seg = curSeg(), last = seg[seg.length - 1];
@@ -809,6 +840,12 @@ function addPoint(f){
     if (dt <= 0.2) return;
     if (d / dt > TYPES[rec.type].maxV && d > f.acc) return; // a jump the body couldn't make
     if (d < Math.max(3, f.acc * 0.5) && dt < 15) return;    // standing still: GPS wobble
+    if (dt > GAP_S && d > 25){
+      // GPS stopped (screen off or app closed). Join the ends with a straight line, which is the least you
+      // can have covered, and remember it so it's drawn dashed and flagged.
+      (rec.gaps ||= []).push(gapKey(rec.t0, p[3]));
+      rec.gapS = (rec.gapS || 0) + dt; rec.lastGap = { s:dt, at:now() };
+    }
     rec.dist += d;
   }
   seg.push(p);
@@ -861,7 +898,7 @@ window.addEventListener('pagehide', () => { if (rec) persistLive(); });
 function persistLive(){
   if (!rec) return; persistT = now();
   const segs = rec.segs.filter(s => s.length);
-  const data = { ...rec, segs:undefined, enc:encodeTrack(segs.length ? segs : [[]], rec.t0) };
+  const data = { ...rec, segs:undefined, enc:encodeTrack(segs.length ? segs : [[]], rec.t0) };   // rec.gaps travels with it
   lsSet(LIVE, JSON.stringify(data));
 }
 function restoreLive(){
@@ -869,7 +906,6 @@ function restoreLive(){
     const d = JSON.parse(localStorage.getItem(LIVE) || 'null'); if (!d) return;
     rec = { ...d, segs:decodeTrack(d.enc) }; delete rec.enc;
     if (!rec.segs.length) rec.segs = [[]];
-    if (!rec.paused) rec.segs.push([]);                      // the app was closed: don't draw a straight line across the gap
     rec.restored = true; S.recType = rec.type;
   } catch(e){ rec = null; localStorage.removeItem(LIVE); }
 }
@@ -923,6 +959,7 @@ function saveRec(name, type, notes){
   const segs = r.segs.filter(s => s.length);
   const dur = Math.round(activeMs(r) / 1000);
   const trk = encodeTrack(segs.length ? segs : [[]], r.t0, dur);
+  if (r.gaps && r.gaps.length) trk.gaps = r.gaps.slice();
   const a = { id:r.id, type, name:name || defaultName(type, r.t0), notes:notes || '', start:r.t0, trackRev:1, created:now() };
   restat(a, trk);
   putTrack(a.id, trk); saveAct(a, true);
@@ -966,13 +1003,7 @@ function renderRecMapTrack(){
   if (!recMap) return;
   recLine.forEach(l => recMap.removeLayer(l)); recLine = [];
   if (!rec) return;
-  const col = cssVar('--accent');
-  for (const s of rec.segs){
-    if (s.length < 2) continue;
-    const ll = s.map(p => [p[0], p[1]]);
-    recLine.push(L.polyline(ll, { color:'#fff', weight:9, opacity:.9, interactive:false }).addTo(recMap));
-    recLine.push(L.polyline(ll, { color:col, weight:5, interactive:false }).addTo(recMap));
-  }
+  recLine = drawRoute(recMap, rec.segs, new Set(rec.gaps || []), rec.t0, cssVar('--accent'));
 }
 let lastDrawn = 0;
 function updateRecMap(){
@@ -1059,7 +1090,8 @@ function renderLive(){
   chip.className = 'gps ' + cls; chip.lastElementChild.textContent = txt;
   // banner
   let b = '';
-  if (rec && rec.restored) b = 'Recording restored. GPS stops while the app is closed, so that stretch is skipped.';
+  if (rec && rec.lastGap && now() - rec.lastGap.at < 300000) b = `GPS was off for ${fmtGap(rec.lastGap.s)} while the screen was off, so that stretch is a straight line. Keep Stride on screen while you record.`;
+  else if (rec && rec.restored) b = 'Recording restored. GPS stops while the app is closed, so that stretch will be a straight line.';
   else if (!rec && S.gpsErr === 'denied') b = 'Location is blocked. Allow location for this app in your phone’s settings to record.';
   const bn = $('#live-banner'); if (bn.dataset.t !== b){ bn.dataset.t = b; bn.innerHTML = b ? `<p class="banner">${esc(b)}</p>` : ''; }
 }
@@ -1292,6 +1324,7 @@ async function renderDetail(fromRemote){
         <div class="m"><b class="num">${fmtEle(st.gain)}</b><small>Climb ${u.el}</small></div>
         ${st.eleMax != null ? `<div class="m"><b class="num">${fmtEle(st.eleMax)}</b><small>Highest ${u.el}</small></div><div class="m"><b class="num">${fmtEle(st.eleMin)}</b><small>Lowest ${u.el}</small></div><div class="m"><b class="num">${fmtEle(st.loss)}</b><small>Descent ${u.el}</small></div>` : ''}
       </div>
+      ${(st.gapTime || 0) >= 60 ? `<p class="banner">GPS was off for ${fmtGap(st.gapTime)} of this ${esc(T.name.toLowerCase())}, usually because the screen was off. Those stretches are drawn dashed and measured as straight lines, so the real distance was probably longer.</p>` : ''}
       <div id="d-trackparts"></div>
       ${bests.length ? `<div class="card"><h3>Fastest efforts</h3><table class="pbs">${bests.map(([D, label]) => `<tr><td><b>${label}</b></td><td class="v">${fmtDur(st.best[D])}<div class="d">${a.type === 'ride' ? fmtSpeed(D / st.best[D]) + ' ' + u.sp : fmtPace(paceOf(D, st.best[D])) + ' /' + u.dl}</div></td></tr>`).join('')}</table></div>` : ''}
       ${a.notes ? `<div class="card"><h3>Notes</h3><div class="notes">${esc(a.notes)}</div></div>` : ''}
@@ -1316,7 +1349,7 @@ async function renderDetail(fromRemote){
   dMap = makeMap($('#d-map'));
   if (dMap){
     const col = cssVar('--' + a.type), lines = [];
-    for (const s of segs){ if (s.length < 2) continue; const ll = s.map(p => [p[0], p[1]]); L.polyline(ll, { color:'#fff', weight:9, opacity:.9, interactive:false }).addTo(dMap); lines.push(L.polyline(ll, { color:col, weight:5, interactive:false }).addTo(dMap)); }
+    lines.push(...drawRoute(dMap, segs, gapSetOf(trk), trk.t0, col));
     const pin = c => L.divIcon({ className:'', html:`<div class="pin ${c}"></div>`, iconSize:[18,18], iconAnchor:[9,9] });
     L.marker([A.pts[0][0], A.pts[0][1]], { icon:pin('s'), interactive:false, keyboard:false }).addTo(dMap);
     L.marker([A.pts[A.n-1][0], A.pts[A.n-1][1]], { icon:pin('e'), interactive:false, keyboard:false }).addTo(dMap);
@@ -1561,7 +1594,7 @@ showTab('record');
 if (rec){ startWatch(); wakeOn(); startTick(); }
 initCloud();
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
-window.__stride = { S, store, analyze, encodeTrack, decodeTrack, get rec(){ return rec; } };
+window.__stride = { S, store, analyze, encodeTrack, decodeTrack, fitForCloud, getTrack, get rec(){ return rec; } };
 </script>
 </body>
 </html>
