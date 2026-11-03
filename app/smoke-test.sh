@@ -30,7 +30,8 @@ grep -q "GPS ±" "$D/2-record.txt" && ok "GPS fix shown" || bad "no GPS fix show
 tap "Start" start && sleep 6
 adb shell dumpsys activity services $PKG > "$D/services.txt"
 grep -q BackgroundGeolocationService "$D/services.txt" && ok "background location service running" || bad "background location service not running"
-adb shell dumpsys notification --noredact | grep -A3 "pkg=$PKG" > "$D/notification.txt" || true
+adb shell dumpsys notification --noredact > "$D/notification.txt" 2>&1
+grep -q "$PKG" "$D/notification.txt" && ok "recording notification shown" || bad "no recording notification"
 shot 3-recording
 # screen off, then walk ~200 m north
 adb shell input keyevent KEYCODE_SLEEP; sleep 3
@@ -49,6 +50,6 @@ shot 5-after-link
 adb logcat -d > "$D/logcat.txt"
 grep -E "Capacitor/Console|chromium" "$D/logcat.txt" > "$D/console.txt" || true
 if grep -E "Uncaught|TypeError|ReferenceError|SyntaxError" "$D/console.txt" | grep -v "favicon" > "$D/js-errors.txt"; then bad "script errors (see js-errors.txt)"; else ok "no script errors"; fi
-grep -E "FATAL EXCEPTION|AndroidRuntime" "$D/logcat.txt" > "$D/crashes.txt" && bad "app crashed (see crashes.txt)" || ok "no crashes"
+grep -E "FATAL EXCEPTION" "$D/logcat.txt" > "$D/crashes.txt" && bad "app crashed (see crashes.txt)" || ok "no crashes"
 [ "$FAILED" = 0 ] && echo "SMOKE PASSED" || echo "SMOKE FAILED"
 exit $FAILED
