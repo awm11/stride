@@ -22,7 +22,7 @@
 <style>
 :root{
   --bg:#eef2f3; --surface:#ffffff; --surface2:#f5f7f8; --ink:#14202a; --ink2:#43515d; --muted:#67747f; --line:#d5dce0;
-  --run:#d42a6c; --ride:#2a67d6; --walk:#b07d0a; --ele:#8a6a42; --danger:#c42f28; --good:#1d7f55;
+  --run:#d42a6c; --ride:#2a67d6; --walk:#b07d0a; --swim:#138f63; --ele:#8a6a42; --danger:#c42f28; --good:#1d7f55;
   --accent:var(--run); --on-accent:#ffffff; --scrim:rgba(10,16,20,.45);
   --cond:'Barlow Condensed','Arial Narrow',system-ui,sans-serif; --body:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;
   --r-sm:10px; --r:16px; --r-lg:24px;
@@ -31,10 +31,10 @@
 }
 :root[data-theme="dark"]{
   --bg:#0e1418; --surface:#182027; --surface2:#1f2930; --ink:#e7edf0; --ink2:#b4bfc7; --muted:#8a96a0; --line:#2c3842;
-  --run:#e8487f; --ride:#4f86ea; --walk:#b8841a; --ele:#b89468; --danger:#ef6158; --good:#4cc08b;
+  --run:#e8487f; --ride:#4f86ea; --walk:#b8841a; --swim:#2a9d72; --ele:#b89468; --danger:#ef6158; --good:#4cc08b;
   --scrim:rgba(0,0,0,.6); color-scheme:dark;
 }
-body[data-type="ride"]{--accent:var(--ride)} body[data-type="walk"]{--accent:var(--walk)}
+body[data-type="ride"]{--accent:var(--ride)} body[data-type="walk"]{--accent:var(--walk)} body[data-type="swim"]{--accent:var(--swim)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.4;overscroll-behavior:none}
 button,input,textarea,select{font:inherit;color:inherit}
@@ -198,7 +198,7 @@ svg.i{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke
 #sheet-wrap{position:fixed;inset:0;z-index:2000;display:flex;align-items:flex-end;justify-content:center}
 .scrim{position:absolute;inset:0;background:var(--scrim)}
 .sheet{position:relative;width:100%;max-width:560px;background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:20px 18px calc(18px + var(--safe-b));max-height:92vh;overflow-y:auto;animation:up .2s ease-out}
-@keyframes up{from{transform:translateY(30px);opacity:.6}}
+@keyframes up{from{transform:translateY(40px)}}
 .sheet h2{font-family:var(--cond);font-size:30px;margin-bottom:12px}
 .sheet .stack{display:flex;flex-direction:column;gap:10px;margin-top:14px}
 label.f{display:block;font-weight:600;font-size:15px;margin:12px 0 6px}
@@ -234,6 +234,113 @@ textarea.t{min-height:90px;resize:vertical}
 .pin.s{background:var(--good)} .pin.e{background:var(--ink)}
 .scrub{width:18px;height:18px;border-radius:50%;background:#fff;border:4px solid var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.4)}
 
+/* ---------- plan ---------- */
+.linkbtn{color:var(--ink2);text-decoration:underline;min-height:44px;font-weight:600}
+.iconbtn.flip svg{transform:scaleX(-1)}
+.iconbtn:disabled{opacity:.35}
+.racecard .rc-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.racecard h2{font-family:var(--cond);font-size:26px;line-height:1.1}
+.racecard p{margin:3px 0 0;color:var(--muted);font-size:15px}
+.count{text-align:right;line-height:1;flex:none}
+.count b{font-family:var(--cond);font-size:46px;font-weight:700;display:block}
+.count span{font-size:13px;color:var(--muted)}
+.phases{position:relative;display:flex;gap:3px;margin-top:16px}
+.phases .ph{min-width:0}
+.phases .ph i{display:block;height:8px;border-radius:4px;background:var(--line)}
+.phases .ph.cur i{background:var(--ink2)}
+.racecard .ph-now{margin:10px 0 0;font-size:14px;color:var(--ink2)}
+.racecard .ph-now b{color:var(--ink)}
+.phases em{position:absolute;top:-4px;width:4px;height:16px;border-radius:2px;background:var(--accent);transform:translateX(-50%);box-shadow:0 0 0 2px var(--surface)}
+.weeknav{display:flex;align-items:center;gap:10px;margin:16px 0 10px}
+.weeknav>div{flex:1;text-align:center}
+.weeknav b{display:block;font-size:19px}
+.weeknav span{font-size:14px;color:var(--muted)}
+.wk-about{margin:0;color:var(--ink2)}
+.wk-tip{margin:10px 0 0;padding-left:10px;border-left:3px solid var(--accent);color:var(--ink2);font-size:15px}
+.wk-tot{margin-top:14px}
+.wk-tot b{font-family:var(--cond);font-size:30px;font-weight:700}
+.wk-tot span{color:var(--muted);font-size:14px;margin-left:6px}
+.wk-bar{display:grid;grid-template-columns:40px 1fr 82px;align-items:center;gap:10px;margin-top:6px;font-size:14px}
+.wk-bar .track{height:8px;border-radius:4px;background:var(--surface2);overflow:hidden}
+.wk-bar i{display:block;height:100%;border-radius:0 4px 4px 0}
+.wk-bar small{color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;font-size:13px}
+.pday{margin-top:14px}
+.pdh{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}
+.pdh b{font-size:15px;color:var(--ink2)}
+.pdh span{font-size:13px;font-weight:700;color:var(--accent)}
+.pday.today .pdh b{color:var(--ink)}
+.rest{margin:0;padding:10px 14px;color:var(--muted);font-size:15px;border:1px dashed var(--line);border-radius:12px}
+.sess{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px 10px 0;min-height:62px;margin-bottom:6px;overflow:hidden}
+.sess .bar{align-self:stretch;width:5px;background:var(--c);border-radius:0 3px 3px 0;flex:none}
+.sess .tx{flex:1;min-width:0}
+.sess b{display:block;font-size:16px}
+.sess small{display:block;color:var(--muted);font-size:14px}
+.sess.opt{border-style:dashed}
+.sess.s-done{background:var(--surface2)}
+.sess.s-done b,.sess.s-skipped b,.sess.s-before b{color:var(--ink2)}
+.sess .ok{width:30px;height:30px;border-radius:50%;background:var(--c);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.sess .ok svg{width:18px;height:18px;stroke-width:3}
+.sess .stx{font-size:13px;color:var(--muted);font-weight:600;flex:none}
+.sess.s-missed .stx{color:var(--danger)}
+.pday.today .sess:not(.s-done):not(.s-skipped){box-shadow:inset 0 0 0 2px var(--c);border-color:transparent}
+.todayplan{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface2);border-radius:12px;padding:6px 8px 6px 0;margin:0 0 8px;min-height:50px;overflow:hidden}
+.todayplan .bar{align-self:stretch;width:5px;background:var(--c);border-radius:0 3px 3px 0;flex:none}
+.todayplan .tx{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
+.todayplan small{display:block;font-size:12px;color:var(--muted)}
+.todayplan .tx>span{color:var(--ink2)}
+.sess-head{display:flex;gap:12px;margin-bottom:8px}
+.sess-head .bar{width:6px;border-radius:3px;background:var(--c);flex:none}
+.sess-head h2{margin:0}
+.sess-head p{margin:2px 0 0;color:var(--muted)}
+.sess-facts{display:flex;gap:22px;flex-wrap:wrap;margin:4px 0}
+.sess-facts b{display:block;font-family:var(--cond);font-size:24px;font-weight:600}
+.sess-facts small{color:var(--muted);font-size:13px}
+ol.steps{margin:12px 0 6px;padding-left:22px}
+ol.steps li{margin:7px 0;line-height:1.45}
+.moves{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.moves button{min-height:52px;border-radius:12px;border:1.5px solid var(--line);font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.moves button small{font-weight:500;color:var(--muted);font-size:12px}
+.moves button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.moves button[aria-pressed="true"] small{color:inherit}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sheet .msg{color:var(--danger);min-height:1.2em;margin:8px 0 0;font-size:15px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--ink2);margin:-2px 0 8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.manual-note{color:var(--muted);font-size:15px;margin:4px 0 12px}
+
+/* ---------- desktop ---------- */
+@media (min-width:900px){
+  #app{flex-direction:row}
+  .tabs{order:-1;flex-direction:column;width:100px;border-top:0;border-right:1px solid var(--line);padding:calc(var(--safe-t) + 14px) 0 14px;justify-content:flex-start;gap:2px}
+  .tabs button{flex:none;height:74px}
+  .tabs button[aria-selected="true"]::before{top:16%;bottom:16%;left:0;right:auto;width:3px;height:auto;border-radius:0 3px 3px 0}
+  .tabs .recdot{top:12px;right:28px}
+  .scroll-pad{max-width:760px;padding:30px 32px 48px}
+  .scroll-pad.wide{max-width:1200px}
+  .vtitle{font-size:40px}
+  #v-record{display:grid;grid-template-columns:minmax(0,1fr) 440px;grid-template-rows:auto 1fr}
+  #v-record .map-wrap{grid-row:1 / span 2}
+  #v-record .live{margin:0;border-radius:0;box-shadow:none;border-left:1px solid var(--line);padding:28px 24px 8px;overflow-y:auto}
+  #v-record .controls{border-left:1px solid var(--line);align-items:flex-start;padding-top:24px}
+  .acts{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+  #toast{bottom:24px}
+  #sheet-wrap{align-items:center}
+  .sheet{border-radius:var(--r-lg);max-height:88vh;padding-bottom:22px}
+  .dmap{height:52vh}
+  .dhead,.dbody{max-width:1000px}
+  .sgrid{grid-template-columns:repeat(6,1fr)}
+  .plan-top{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  .plan-top .card{margin:0}
+}
+@media (min-width:1180px){
+  .pdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin-top:6px}
+  .pday{margin-top:0}
+  .sess{display:block;padding:10px 12px;border-top:4px solid var(--c);min-height:96px;position:relative}
+  .sess .bar{display:none}
+  .sess .ok{position:absolute;right:8px;bottom:8px;width:26px;height:26px}
+  .sess .stx{display:block;margin-top:6px}
+  .rest{min-height:96px;display:flex;align-items:center;justify-content:center}
+}
 @media (min-height:760px){ .m b{font-size:48px} }
 @media (max-height:680px){ .hero .big{font-size:76px} .m b{font-size:36px} .lgrid.three .m b{font-size:26px} .controls{min-height:100px;padding-bottom:10px} .start{width:88px;height:88px} .pill{height:72px} .lockbtn{height:72px} }
 @media (prefers-reduced-motion:reduce){ *{animation:none!important;transition:none!important} }
@@ -252,6 +359,7 @@ textarea.t{min-height:90px;resize:vertical}
         <button class="mapbtn" id="recenter" aria-label="Keep map centred on me"></button>
       </div>
       <div class="live" id="live">
+        <div id="today-plan"></div>
         <div id="live-banner"></div>
         <div class="hero"><span class="big" id="l-dist">0.00</span><span class="unit" id="l-dunit">km</span><span class="state" id="l-state"></span></div>
         <div class="lgrid">
@@ -267,6 +375,7 @@ textarea.t{min-height:90px;resize:vertical}
       <div class="controls" id="controls"></div>
     </section>
     <section id="v-list" class="view" aria-label="Activities" hidden></section>
+    <section id="v-plan" class="view" aria-label="Plan" hidden></section>
     <section id="v-stats" class="view" aria-label="Stats" hidden></section>
     <section id="v-you" class="view" aria-label="You" hidden></section>
   </main>
@@ -341,6 +450,10 @@ const I = {
   edit:'<svg class="i" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
   trash:'<svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
   down:'<svg class="i" viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>',
+  plan:'<svg class="i" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/><path d="M8.5 15l2 2 4-4"/></svg>',
+  check:'<svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  chev:'<svg class="i" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>',
+  plus:'<svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
 };
 
 /* ---------- activity types & units ---------- */
@@ -348,12 +461,17 @@ const TYPES = {
   run:  { name:'Run',  pace:true,  maxV:12, moveV:0.8 },
   ride: { name:'Ride', pace:false, maxV:35, moveV:1.5 },
   walk: { name:'Walk', pace:true,  maxV:6,  moveV:0.4 },
+  swim: { name:'Swim', pace:true,  maxV:3,  moveV:0.15 },   // open water with GPS, or pool swims logged by hand
 };
 const BESTS = {
   run:  [[1000,'1 km'],[1609.344,'1 mile'],[5000,'5 km'],[10000,'10 km'],[21097.5,'Half marathon'],[42195,'Marathon']],
   walk: [[1000,'1 km'],[5000,'5 km'],[10000,'10 km']],
   ride: [[10000,'10 km'],[20000,'20 km'],[40000,'40 km'],[100000,'100 km']],
+  swim: [[400,'400 m'],[750,'750 m'],[1500,'1500 m']],
 };
+// Swims are measured in metres with pace per 100 m; everything else follows the km/mile setting.
+const paceU = type => type === 'swim' ? { d:100, l:'100 m' } : { d:U().d, l:U().dl };
+const distText = (m, type) => type === 'swim' ? `${Math.round(m || 0).toLocaleString('en-GB')} m` : `${fmtDist(m)} ${U().dl}`;
 const U = () => S.settings.units === 'mi'
   ? { d:1609.344, dl:'mi', dn:'mile', e:0.3048, el:'ft', sp:'mph', sps:2.2369363 }
   : { d:1000, dl:'km', dn:'kilometre', e:1, el:'m', sp:'km/h', sps:3.6 };
@@ -511,7 +629,7 @@ function splitsOf(A){
 }
 
 /* ---------- state & local storage ---------- */
-const DEFAULT_SETTINGS = { units:'km', theme:'auto', map:'streets', voice:true, keepAwake:true, terrain:true, defType:'run' };
+const DEFAULT_SETTINGS = { units:'km', theme:'auto', map:'streets', voice:true, keepAwake:true, terrain:true, defType:'run', plan:null };
 const S = { acts:{}, settings:{ ...DEFAULT_SETTINGS }, settingsAt:0, tab:'record', filter:'all', sfilter:'all', detail:null, sync:'local', syncMsg:null, account:null };
 try {
   const d = JSON.parse(localStorage.getItem(LS) || 'null');
@@ -693,7 +811,7 @@ async function fetchTrack(id){
   } catch(e){ return null; }
 }
 async function prefetchTracks(){
-  const want = liveActs().slice(0, 12).filter(a => !getTrack(a.id) && a.stats && a.stats.dist > 0);
+  const want = liveActs().slice(0, 12).filter(a => !a.manual && !getTrack(a.id) && a.stats && a.stats.dist > 0);
   for (const a of want){ if (!store.user) return; await fetchTrack(a.id); }
 }
 
@@ -959,6 +1077,7 @@ function currentSpeed(){
   return dt >= 4 ? d / dt : 0;
 }
 function checkSplit(){
+  if (rec.type === 'swim') return;            // no spoken splits in the water
   const u = U().d, k = Math.floor(rec.dist / u);
   if (k > (rec.splitN || 0)){
     const t = activeMs() / 1000, split = t - (rec.splitT || 0);
@@ -1126,7 +1245,7 @@ function applyTheme(){
 mq.addEventListener && mq.addEventListener('change', applyTheme);
 
 /* ---------- rendering ---------- */
-const TABS = [['record','Record',I.rec],['list','Activities',I.list],['stats','Stats',I.stats],['you','You',I.you]];
+const TABS = [['record','Record',I.rec],['plan','Plan',I.plan],['list','Activities',I.list],['stats','Stats',I.stats],['you','You',I.you]];
 function renderTabs(){
   $('#tabs').innerHTML = TABS.map(([k, n, ic]) => `<button role="tab" data-tab="${k}" aria-selected="${S.tab === k}">${ic}<span>${n}</span>${k === 'record' && rec ? '<span class="recdot" aria-label="Recording"></span>' : ''}</button>`).join('');
 }
@@ -1143,6 +1262,7 @@ function render(fromRemote){
   const ae = document.activeElement, typing = ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName);
   if (S.tab === 'record') renderRecord();
   if (fromRemote && typing) return;
+  if (S.tab === 'plan') renderPlan();
   if (S.tab === 'list') renderList();
   if (S.tab === 'stats') renderStats();
   if (S.tab === 'you') renderYou();
@@ -1151,19 +1271,20 @@ function render(fromRemote){
 function renderRecord(){
   const tp = rec ? rec.type : S.recType;
   $('#type-pick').innerHTML = Object.entries(TYPES).map(([k, t]) => `<button role="radio" data-type="${k}" aria-checked="${tp === k}" ${rec ? 'disabled' : ''}>${t.name}</button>`).join('');
-  renderRecenter(); renderLive(); renderControls();
+  renderRecenter(); renderLive(); renderControls(); todayCard();
 }
 function renderLive(){
   if (S.tab !== 'record') return;
   const tp = rec ? rec.type : S.recType, T = TYPES[tp], u = U();
   const dist = rec ? rec.dist : 0, secs = rec ? activeMs() / 1000 : 0;
-  $('#l-dist').textContent = fmtDist(dist, 2);
-  $('#l-dunit').textContent = u.dl;
+  $('#l-dist').textContent = tp === 'swim' ? String(Math.round(dist)) : fmtDist(dist, 2);
+  $('#l-dunit').textContent = tp === 'swim' ? 'm' : u.dl;
   $('#l-time').textContent = fmtDur(secs);
   const sp = currentSpeed();
   if (T.pace){
-    $('#l-pace').textContent = fmtPace(sp > 0.3 ? u.d / sp : Infinity); $('#l-pace-l').textContent = `Pace /${u.dl}`;
-    $('#l-avg').textContent = fmtPace(paceOf(dist, secs)); $('#l-avg-l').textContent = `Avg pace /${u.dl}`;
+    const pu = paceU(tp);
+    $('#l-pace').textContent = fmtPace(sp > T.moveV ? pu.d / sp : Infinity); $('#l-pace-l').textContent = `Pace /${pu.l}`;
+    $('#l-avg').textContent = fmtPace(dist > 0 && secs > 0 ? secs / (dist / pu.d) : Infinity); $('#l-avg-l').textContent = `Avg pace /${pu.l}`;
   } else {
     $('#l-pace').textContent = fmtSpeed(sp); $('#l-pace-l').textContent = `Speed ${u.sp}`;
     $('#l-avg').textContent = fmtSpeed(secs ? dist / secs : 0); $('#l-avg-l').textContent = `Avg ${u.sp}`;
@@ -1219,19 +1340,21 @@ function glyphSvg(pv, color){
   return `<svg viewBox="0 0 46 46" aria-hidden="true"><path d="${d}" fill="none" stroke="${color}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${((e[0]-minX)*sc+ox).toFixed(1)}" cy="${((e[1]-minY)*sc+oy).toFixed(1)}" r="3" fill="${color}"/></svg>`;
 }
 function statLine(a){
-  const st = a.stats || {}, T = TYPES[a.type] || TYPES.run, u = U();
-  const third = T.pace ? `${fmtPace(paceOf(st.dist, st.moving || st.time))}<small>/${u.dl}</small>` : `${fmtSpeed(st.dist / (st.moving || st.time || 1))}<small>${u.sp}</small>`;
-  return `<span>${fmtDist(st.dist)}<small>${u.dl}</small></span><span>${fmtDur(st.time)}</span><span>${third}</span>`;
+  const st = a.stats || {}, T = TYPES[a.type] || TYPES.run, u = U(), pu = paceU(a.type);
+  if (!(st.dist > 0)) return `<span>${fmtDur(st.time)}</span>`;
+  const third = T.pace ? `${fmtPace((st.moving || st.time) / (st.dist / pu.d))}<small>/${pu.l}</small>` : `${fmtSpeed(st.dist / (st.moving || st.time || 1))}<small>${u.sp}</small>`;
+  const d = a.type === 'swim' ? `${Math.round(st.dist).toLocaleString('en-GB')}<small>m</small>` : `${fmtDist(st.dist)}<small>${u.dl}</small>`;
+  return `<span>${d}</span><span>${fmtDur(st.time)}</span><span>${third}</span>`;
 }
 function renderList(){
   const v = $('#v-list');
   const all = liveActs(), acts = all.filter(a => S.filter === 'all' || a.type === S.filter);
   const chips = [['all','All'], ...Object.entries(TYPES).map(([k, t]) => [k, t.name + 's'])];
-  let html = `<div class="scroll-pad"><div class="vhead"><h1 class="vtitle">Activities</h1><button class="iconbtn" data-act="import-gpx" aria-label="Import a GPX file">${I.upload}</button></div>
+  let html = `<div class="scroll-pad wide"><div class="vhead"><h1 class="vtitle">Activities</h1><div style="display:flex;gap:8px"><button class="iconbtn" data-act="add-manual" aria-label="Log an activity by hand">${I.plus}</button><button class="iconbtn" data-act="import-gpx" aria-label="Import a GPX file">${I.upload}</button></div></div>
     <div class="chips">${chips.map(([k, n]) => `<button data-filter="${k}" aria-pressed="${S.filter === k}">${n}</button>`).join('')}</div>`;
   if (!acts.length){
     html += all.length ? `<div class="empty"><h2>Nothing here yet</h2><p>No ${esc(TYPES[S.filter].name.toLowerCase())}s recorded so far.</p></div>`
-      : `<div class="empty"><h2>No activities yet</h2><p>Head to Record and tap Start, or import a GPX file from another app.</p><div class="btnrow" style="justify-content:center"><button class="btn primary" data-tab="record">Record an activity</button><button class="btn" data-act="import-gpx">Import GPX</button></div></div>`;
+      : `<div class="empty"><h2>No activities yet</h2><p>Head to Record and tap Start, log a pool swim or indoor session by hand, or import a GPX file from another app.</p><div class="btnrow" style="justify-content:center"><button class="btn primary" data-tab="record">Record an activity</button><button class="btn" data-act="add-manual">Log by hand</button></div></div>`;
   } else {
     let curKey = null;
     const groups = {};
@@ -1239,10 +1362,10 @@ function renderList(){
     for (const k of Object.keys(groups).sort((a, b) => b - a)){
       const g = groups[k], tot = g.reduce((s, a) => s + (a.stats?.dist || 0), 0);
       html += `<div class="group"><h2>${MF.format(new Date(g[0].start))}</h2><span>${g.length} ${g.length === 1 ? 'activity' : 'activities'}, ${fmtDist(tot, 1)} ${U().dl}</span></div>`;
-      html += g.map(a => `<button class="act" data-open="${a.id}">
+      html += '<div class="acts">' + g.map(a => `<button class="act" data-open="${a.id}">
         <span class="glyph" style="--accent:var(--${a.type})">${glyphSvg(a.pv, `var(--${a.type})`)}</span>
-        <span class="tx"><span class="nm" style="display:block">${esc(a.name)}</span><span class="dt" style="display:block"><span class="tdot" style="background:var(--${a.type})"></span>${TYPES[a.type]?.name || ''}, ${fmtWhen(a.start)}</span>
-        <span class="st">${statLine(a)}</span></span></button>`).join('');
+        <span class="tx"><span class="nm" style="display:block">${esc(a.name)}</span><span class="dt" style="display:block"><span class="tdot" style="background:var(--${a.type})"></span>${TYPES[a.type]?.name || ''}${a.manual ? ' (logged)' : ''}, ${fmtWhen(a.start)}</span>
+        <span class="st">${statLine(a)}</span></span></button>`).join('') + '</div>';
     }
   }
   v.innerHTML = html + '</div>';
@@ -1259,7 +1382,8 @@ function renderStats(){
   const chips = [['all','All'], ...Object.entries(TYPES).map(([k, t]) => [k, t.name + 's'])];
   // weekly bars, last 12 weeks
   const weeks = []; for (let i = 11; i >= 0; i--){ const d = new Date(ws); d.setDate(d.getDate() - i * 7); weeks.push(d.getTime()); }
-  const wk = weeks.map((w, i) => { const end = i < 11 ? weeks[i + 1] : Infinity; return acts.filter(a => a.start >= w && a.start < end).reduce((s, a) => s + (a.stats?.dist || 0), 0) / u.d; });
+  const inWeek = (i, list) => { const end = i < 11 ? weeks[i + 1] : Infinity; return list.filter(a => a.start >= weeks[i] && a.start < end); };
+  const wk = weeks.map((w, i) => inWeek(i, acts).reduce((s, a) => s + (a.stats?.dist || 0), 0) / (f === 'swim' ? 1 : u.d));
   // personal bests for the chosen type (runs when showing everything)
   const pbType = f === 'all' ? 'run' : f;
   const pbs = BESTS[pbType].map(([D, label]) => {
@@ -1269,13 +1393,17 @@ function renderStats(){
   v.innerHTML = `<div class="scroll-pad"><h1 class="vtitle">Stats</h1>
     <div class="chips">${chips.map(([k, n]) => `<button data-sfilter="${k}" aria-pressed="${f === k}">${n}</button>`).join('')}</div>
     <div class="tot">${tile('This week', sum(ws))}${tile('This month', sum(ms))}${tile(String(nowD.getFullYear()), sum(ys))}</div>
-    <div class="card"><div class="chead"><h3>Distance per week (${u.dl})</h3></div><div class="chart" id="wk-chart"></div></div>
+    <div class="card"><div class="chead"><h3>${f === 'all' ? 'Training time per week (hours)' : f === 'swim' ? 'Distance per week (m)' : `Distance per week (${u.dl})`}</h3></div><div class="chart" id="wk-chart"></div></div>
     <div class="card"><h3>Personal bests: ${TYPES[pbType].name.toLowerCase()}s</h3>
-      ${pbs.length ? `<table class="pbs">${pbs.map(p => `<tr><td><button data-open="${p.best.a.id}"><b>${p.label}</b><br><span class="d" style="text-align:left;display:block">${esc(p.best.a.name)}, ${DFY.format(new Date(p.best.a.start))}</span></button></td><td class="v">${fmtDur(p.best.s)}<div class="d">${pbType === 'ride' ? fmtSpeed(p.D / p.best.s) + ' ' + u.sp : fmtPace(paceOf(p.D, p.best.s)) + ' /' + u.dl}</div></td></tr>`).join('')}</table>`
+      ${pbs.length ? `<table class="pbs">${pbs.map(p => `<tr><td><button data-open="${p.best.a.id}"><b>${p.label}</b><br><span class="d" style="text-align:left;display:block">${esc(p.best.a.name)}, ${DFY.format(new Date(p.best.a.start))}</span></button></td><td class="v">${fmtDur(p.best.s)}<div class="d">${pbType === 'ride' ? fmtSpeed(p.D / p.best.s) + ' ' + u.sp : fmtPace(p.best.s / (p.D / paceU(pbType).d)) + ' /' + paceU(pbType).l}</div></td></tr>`).join('')}</table>`
         : `<p class="note">Your fastest ${BESTS[pbType].map(b => b[1]).slice(0, 3).join(', ')} and longer efforts appear here once you’ve recorded some ${TYPES[pbType].name.toLowerCase()}s.</p>`}
     </div></div>`;
   const labels = weeks.map(w => { const d = new Date(w); return d.getDate() + ' ' + d.toLocaleString('en-GB', { month:'short' }); });
-  barChart($('#wk-chart'), wk, labels, f === 'all' ? cssVar('--ink2') : cssVar('--' + f), x => x.toFixed(1) + ' ' + u.dl);
+  if (f === 'all'){
+    const order = ['swim', 'ride', 'run', 'walk'].filter(t => liveActs().some(a => a.type === t));
+    const series = (order.length ? order : ['swim', 'ride', 'run']).map(t => ({ label:TYPES[t].name, color:cssVar('--' + t), vals:weeks.map((w, i) => inWeek(i, acts.filter(a => a.type === t)).reduce((s, a) => s + (a.stats?.time || 0), 0) / 3600) }));
+    stackChart($('#wk-chart'), series, labels, x => { const m = Math.round(x * 60); return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`; });
+  } else barChart($('#wk-chart'), wk, labels, cssVar('--' + f), x => f === 'swim' ? Math.round(x).toLocaleString('en-GB') + ' m' : x.toFixed(1) + ' ' + u.dl);
 }
 
 /* you / settings */
@@ -1398,38 +1526,44 @@ function closeDetailNow(){
 async function renderDetail(fromRemote){
   const id = S.detail, a = S.acts[id], el = $('#detail');
   if (!a || a.deleted){ if (fromRemote) toast('That activity was deleted on another device.'); closeLayer('detail'); return; }
-  const T = TYPES[a.type] || TYPES.run, st = a.stats || {}, u = U();
-  let trk = getTrack(id);
+  const T = TYPES[a.type] || TYPES.run, st = a.stats || {}, u = U(), pu = paceU(a.type), isSwim = a.type === 'swim';
+  let trk = a.manual ? null : getTrack(id);
   const sameView = fromRemote && el.dataset.id === id && el.dataset.rev === String(a.trackRev || 1) && trk;
   el.dataset.id = id; el.dataset.rev = String(a.trackRev || 1);
   document.body.dataset.type = a.type;
-  const avg = T.pace ? [fmtPace(paceOf(st.dist, st.moving)), `Avg pace /${u.dl}`] : [fmtSpeed(st.dist / (st.moving || 1)), `Avg ${u.sp}`];
-  const max = T.pace ? [fmtPace(st.maxSpeed ? u.d / st.maxSpeed : Infinity), `Best pace /${u.dl}`] : [fmtSpeed(st.maxSpeed), `Max ${u.sp}`];
+  const avg = T.pace ? [fmtPace(st.dist > 0 ? st.moving / (st.dist / pu.d) : Infinity), `Avg pace /${pu.l}`] : [fmtSpeed(st.dist / (st.moving || 1)), `Avg ${u.sp}`];
+  const max = T.pace ? [fmtPace(st.maxSpeed ? pu.d / st.maxSpeed : Infinity), `Best pace /${pu.l}`] : [fmtSpeed(st.maxSpeed), `Max ${u.sp}`];
+  const distTile = isSwim ? [Math.round(st.dist || 0).toLocaleString('en-GB'), 'Distance m'] : [fmtDist(st.dist), `Distance ${u.dl}`];
   const bests = (BESTS[a.type] || []).filter(([D]) => st.best && st.best[D]);
   const scrollY = el.scrollTop;
   el.innerHTML = `<div class="ptop"><button class="iconbtn" data-act="back" aria-label="Back">${I.back}</button><span class="ttl" id="d-ttl" style="opacity:0">${esc(a.name)}</span>
       <button class="iconbtn" data-act="edit" aria-label="Edit">${I.edit}</button></div>
-    <div class="dmap" id="d-map"></div>
+    <div class="dmap" id="d-map" ${a.manual ? 'hidden' : ''}></div>
     <div class="dhead"><h1>${esc(a.name)}</h1><p><span class="tdot" style="background:var(--${a.type})"></span>${T.name}, ${fmtWhen(a.start)}</p></div>
     <div class="dbody">
-      <div class="sgrid">
-        <div class="m k"><b class="num">${fmtDist(st.dist)}</b><small>Distance ${u.dl}</small></div>
+      ${a.manual ? `<p class="manual-note">Logged by hand, so there’s no route or charts.</p><div class="sgrid">
+        ${st.dist > 0 ? `<div class="m k"><b class="num">${distTile[0]}</b><small>${distTile[1]}</small></div>` : ''}
+        <div class="m k"><b class="num">${fmtDur(st.time)}</b><small>Time</small></div>
+        ${st.dist > 0 ? `<div class="m k"><b class="num">${avg[0]}</b><small>${avg[1]}</small></div>` : ''}
+      </div>` : `<div class="sgrid">
+        <div class="m k"><b class="num">${distTile[0]}</b><small>${distTile[1]}</small></div>
         <div class="m k"><b class="num">${fmtDur(st.moving)}</b><small>Moving time</small></div>
         <div class="m k"><b class="num">${avg[0]}</b><small>${avg[1]}</small></div>
         <div class="m"><b class="num">${fmtDur(st.time)}</b><small>Total time</small></div>
         <div class="m"><b class="num">${max[0]}</b><small>${max[1]}</small></div>
         <div class="m"><b class="num">${fmtEle(st.gain)}</b><small>Climb ${u.el}</small></div>
-        ${st.eleMax != null ? `<div class="m"><b class="num">${fmtEle(st.eleMax)}</b><small>Highest ${u.el}</small></div><div class="m"><b class="num">${fmtEle(st.eleMin)}</b><small>Lowest ${u.el}</small></div><div class="m"><b class="num">${fmtEle(st.loss)}</b><small>Descent ${u.el}</small></div>` : ''}
-      </div>
+        ${st.eleMax != null && !isSwim ? `<div class="m"><b class="num">${fmtEle(st.eleMax)}</b><small>Highest ${u.el}</small></div><div class="m"><b class="num">${fmtEle(st.eleMin)}</b><small>Lowest ${u.el}</small></div><div class="m"><b class="num">${fmtEle(st.loss)}</b><small>Descent ${u.el}</small></div>` : ''}
+      </div>`}
       ${(st.gapTime || 0) >= 60 ? `<p class="banner">GPS was missing for ${fmtGap(st.gapTime)} of this ${esc(T.name.toLowerCase())}, usually because the screen was off while recording in the browser. Those stretches are drawn dashed and measured as straight lines, so the real distance was probably longer.</p>` : ''}
       <div id="d-trackparts"></div>
-      ${bests.length ? `<div class="card"><h3>Fastest efforts</h3><table class="pbs">${bests.map(([D, label]) => `<tr><td><b>${label}</b></td><td class="v">${fmtDur(st.best[D])}<div class="d">${a.type === 'ride' ? fmtSpeed(D / st.best[D]) + ' ' + u.sp : fmtPace(paceOf(D, st.best[D])) + ' /' + u.dl}</div></td></tr>`).join('')}</table></div>` : ''}
+      ${bests.length ? `<div class="card"><h3>Fastest efforts</h3><table class="pbs">${bests.map(([D, label]) => `<tr><td><b>${label}</b></td><td class="v">${fmtDur(st.best[D])}<div class="d">${a.type === 'ride' ? fmtSpeed(D / st.best[D]) + ' ' + u.sp : fmtPace(st.best[D] / (D / pu.d)) + ' /' + pu.l}</div></td></tr>`).join('')}</table></div>` : ''}
       ${a.notes ? `<div class="card"><h3>Notes</h3><div class="notes">${esc(a.notes)}</div></div>` : ''}
-      <div class="btnrow" style="margin-top:16px"><button class="btn" data-act="gpx">${I.down}Export GPX</button><button class="btn danger" data-act="delete">${I.trash}Delete</button></div>
+      <div class="btnrow" style="margin-top:16px">${a.manual ? '' : `<button class="btn" data-act="gpx">${I.down}Export GPX</button>`}<button class="btn danger" data-act="delete">${I.trash}Delete</button></div>
     </div>`;
   if (sameView) el.scrollTop = scrollY;
   if (dMap){ dMap.remove(); dMap = null; } dCharts = []; dScrub = null; dA = null;
   const parts = $('#d-trackparts');
+  if (a.manual) return;
   if (!trk){
     if (!(st.dist > 0)){ $('#d-map').hidden = true; return; }
     if (store.user){
@@ -1457,9 +1591,10 @@ async function renderDetail(fromRemote){
   // charts, downsampled to ~400 points
   const step = Math.max(1, Math.ceil(A.n / 400)), idx = [];
   for (let i = 0; i < A.n; i += step) idx.push(i); if (idx[idx.length - 1] !== A.n - 1) idx.push(A.n - 1);
-  const xs = idx.map(i => A.cumD[i] / u.d);
+  const xd = isSwim ? 1 : u.d, xl = isSwim ? 'm' : u.dl;
+  const xs = idx.map(i => A.cumD[i] / xd);
   const hasDem = !!trk.dem, eleSrc = A.src;
-  const spl = splitsOf(A), fastest = Math.min(...spl.filter(s => !s.part).map(s => s.t / s.d), Infinity);
+  const spl = isSwim ? [] : splitsOf(A), fastest = Math.min(...spl.filter(s => !s.part).map(s => s.t / s.d), Infinity);
   parts.innerHTML = `
     ${A.ele ? `<div class="card"><div class="chead"><h3>Elevation</h3>${hasDem ? `<div class="minichips" role="group" aria-label="Elevation source"><button data-elesrc="dem" aria-pressed="${eleSrc === 'dem'}">Terrain</button><button data-elesrc="gps" aria-pressed="${eleSrc === 'gps'}">GPS</button></div>` : (navigator.onLine && st.dist > 0 ? `<button class="btn" style="min-height:40px;font-size:14px" data-act="terrain">Use terrain data</button>` : '')}</div><div class="chart" id="c-ele"></div></div>` : ''}
     <div class="card"><div class="chead"><h3>${T.pace ? 'Pace' : 'Speed'}</h3></div><div class="chart" id="c-spd"></div></div>
@@ -1470,30 +1605,462 @@ async function renderDetail(fromRemote){
     dCharts.forEach(c => c && c.show(k == null ? null : k));
     if (dScrub){ if (k == null) dScrub.setOpacity(0); else { const p = A.pts[idx[k]]; dScrub.setLatLng([p[0], p[1]]).setOpacity(1); } }
   };
-  const xFmt = v => (+v.toFixed(1)) + ' ' + u.dl;
+  const xFmt = v => isSwim ? Math.round(v) + ' m' : (+v.toFixed(1)) + ' ' + u.dl;
   if (A.ele){
     dCharts.push(lineChart($('#c-ele'), { xs, ys:idx.map(i => A.ele[i] == null ? null : A.ele[i] / u.e), color:cssVar('--ele'), area:true, h:140, minSpan:20, label:'Elevation profile',
-      yFmt:v => Math.round(v) + '', xFmt, tipFmt:k => `${fmtDist(A.cumD[idx[k]])} ${u.dl}: ${fmtEle(A.ele[idx[k]])} ${u.el}`, onScrub }));
+      yFmt:v => Math.round(v) + '', xFmt, tipFmt:k => `${distText(A.cumD[idx[k]], a.type)}: ${fmtEle(A.ele[idx[k]])} ${u.el}`, onScrub }));
   }
   // charts use a wider (~30 s) average so GPS wobble doesn't drown the trend
   const sm = new Array(A.n); { let lo = 0, hi = 0, sum = 0; for (let i = 0; i < A.n; i++){ while (hi < A.n && A.cumT[hi] - A.cumT[i] <= 15) sum += A.spd[hi++]; while (A.cumT[i] - A.cumT[lo] > 15) sum -= A.spd[lo++]; sm[i] = sum / Math.max(1, hi - lo); } }
   const spdY = idx.map(i => sm[i]);
   if (T.pace){
     // plotted as speed so faster sits higher; the axis is labelled in pace
-    const vmax = Math.max(...spdY), slow = Math.max(TYPES[a.type].moveV, 0.6);
+    const vmax = Math.max(...spdY), slow = isSwim ? 0.2 : Math.max(TYPES[a.type].moveV, 0.6);
     dCharts.push(lineChart($('#c-spd'), { xs, ys:spdY.map(v => v < slow ? null : v), color:cssVar('--' + a.type), h:150, minSpan:0.5, yMin:Math.max(slow, Math.min(...spdY.filter(v => v >= slow), vmax) * 0.9), label:'Pace over distance',
       ticks:(lo, hi) => {   // round pace values (every 15 s, 30 s, 1 min…) placed on the speed axis
-        const pFast = u.d / hi, pSlow = u.d / lo, span = pSlow - pFast;
+        const pFast = pu.d / hi, pSlow = pu.d / lo, span = pSlow - pFast;
         const step = [5, 10, 15, 30, 60, 120, 300, 600].find(x => span / x <= 3.5) || 900;
-        const t = []; for (let p = Math.ceil(pFast / step) * step; p <= pSlow + 1e-6; p += step) t.push(u.d / p);
-        if (t.length < 2) t.push(u.d / (Math.floor(pFast / step) * step || step), u.d / (Math.ceil(pSlow / step) * step + (Math.ceil(pSlow / step) * step === pSlow ? step : 0)));
+        const t = []; for (let p = Math.ceil(pFast / step) * step; p <= pSlow + 1e-6; p += step) t.push(pu.d / p);
+        if (t.length < 2) t.push(pu.d / (Math.floor(pFast / step) * step || step), pu.d / (Math.ceil(pSlow / step) * step + (Math.ceil(pSlow / step) * step === pSlow ? step : 0)));
         return [...new Set(t)].sort((x, y) => x - y);
       },
-      yFmt:v => fmtPace(u.d / v), xFmt, tipFmt:k => `${fmtDist(A.cumD[idx[k]])} ${u.dl}: ${sm[idx[k]] < slow ? 'stopped' : fmtPace(u.d / sm[idx[k]]) + ' /' + u.dl}`, onScrub }));
+      yFmt:v => fmtPace(pu.d / v), xFmt, tipFmt:k => `${distText(A.cumD[idx[k]], a.type)}: ${sm[idx[k]] < slow ? 'stopped' : fmtPace(pu.d / sm[idx[k]]) + ' /' + pu.l}`, onScrub }));
   } else {
     dCharts.push(lineChart($('#c-spd'), { xs, ys:spdY.map(v => v * u.sps), color:cssVar('--' + a.type), h:150, minSpan:5, yMin:0, label:'Speed over distance',
       yFmt:v => Math.round(v) + '', xFmt, tipFmt:k => `${fmtDist(A.cumD[idx[k]])} ${u.dl}: ${fmtSpeed(sm[idx[k]])} ${u.sp}`, onScrub }));
   }
+}
+
+/* ---------- training plan: Olympic triathlon, first race, about 3–5 hours a week ---------- */
+// The plan is generated from a table of weekly volumes and session templates, anchored to the race date.
+// Only the race date and what you've ticked off, skipped or moved is saved (in settings.plan, which syncs).
+const PLAN_WEEKS = 31;
+const PLAN_RACES = { olympic:{ name:'Olympic triathlon', swim:1500, ride:40000, run:10000 } };
+const PHASES = [
+  { key:'foundation', name:'Foundation', from:1,  to:8,  about:'Build the habit and your swim technique. Keep everything easy: you should be able to chat.' },
+  { key:'base',       name:'Base',       from:9,  to:18, about:'Sessions get longer, and each sport gets one steadier effort a week.' },
+  { key:'build',      name:'Build',      from:19, to:26, about:'Race-specific work: bricks (a run straight off the bike), harder intervals and a full 1500 m swim.' },
+  { key:'peak',       name:'Peak',       from:27, to:29, about:'Open-water swimming and a race rehearsal.' },
+  { key:'taper',      name:'Taper',      from:30, to:31, about:'Less training and a little sharpness, so you arrive at the start fresh.' },
+];
+const phaseOf = w => PHASES.find(p => w >= p.from && w <= p.to) || PHASES[0];
+// Week by week: kind, technique swim (m), endurance swim (m), midweek run (min), midweek bike (min; negative = optional),
+// long ride (min), brick run (min), long run (min). Test weeks swap the long ride and long run for tests.
+const PLAN_TABLE = [
+  ['test',      900,  600, 20,  30,  0,  0,  0],  //  1 baseline tests
+  ['normal',    800,  700, 25,  30, 50,  0, 30],
+  ['normal',    900,  800, 25,  35, 55,  0, 35],
+  ['recovery',  700,  600, 20,  30, 40,  0, 30],
+  ['normal',   1000,  900, 30,  35, 60,  0, 40],
+  ['normal',   1000, 1000, 30,  40, 65,  0, 40],
+  ['holiday',   800,  800, 25,  30, 60,  0, 35],  //  7 Christmas
+  ['test',      900,  800, 25,  30,  0,  0,  0],  //  8
+  ['normal',   1100, 1000, 30,  40, 70,  0, 45],  //  9 base
+  ['normal',   1200, 1100, 35,  40, 75,  0, 45],
+  ['normal',   1200, 1200, 35,  45, 80,  0, 50],
+  ['recovery', 1000,  900, 30,  35, 60,  0, 40],
+  ['normal',   1300, 1200, 35,  45, 80, 10, 50],  // 13 first brick
+  ['normal',   1400, 1300, 40, -40, 85, 10, 50],
+  ['normal',   1400, 1400, 40, -45, 85, 10, 55],
+  ['recovery', 1100, 1000, 30,  35, 65,  0, 45],
+  ['normal',   1500, 1400, 40, -45, 90, 15, 55],
+  ['test',     1000, 1000, 30,  35,  0,  0,  0],  // 18
+  ['normal',   1500, 1500, 40, -45, 90, 15, 55],  // 19 build
+  ['normal',   1600, 1500, 40, -45, 90, 15, 60],
+  ['normal',   1500, 1600, 40, -45, 85, 20, 55],
+  ['recovery', 1200, 1100, 35,  35, 70, 10, 45],
+  ['normal',   1400, 1700, 40, -45, 85, 20, 60],
+  ['normal',   1400, 1800, 40, -45, 85, 20, 60],  // 24 first continuous 1500 m
+  ['normal',   1400, 1800, 40, -45, 85, 20, 60],
+  ['test',     1100, 1200, 30,  35,  0, 10,  0],  // 26
+  ['peak',     1600, 1500, 40, -40, 85, 20, 60],  // 27 open water starts
+  ['rehearsal',1200,    0, 30, -40,  0,  0, 30],  // 28 race rehearsal on Saturday
+  ['peak',     1500, 1500, 40, -40, 80, 15, 55],
+  ['taper',    1200, 1000, 30,  35, 60, 10, 40],  // 30
+  ['race',      800,    0, 20,  30, 15,  0,  0],  // 31 race week
+];
+const EFFORTS = ['', 'Easy', 'Steady', 'Comfortably hard', 'Hard', 'Race effort'];
+const WEEK_KIND_NOTE = {
+  recovery:'Recovery week: shorter and all easy. This is when the last three weeks of training turn into fitness.',
+  holiday:'Christmas week: fit sessions in where you can. Missing a couple is fine.',
+  test:'Test week: a short test in each sport so you can see your progress. Go hard but evenly, and record each one in Stride.',
+  rehearsal:'Race rehearsal week: on Saturday you’ll do the whole race in miniature, with your race kit and transitions.',
+  taper:'Taper: about two-thirds of your usual training, with a little speed. Sleep well.',
+  race:'Race week: short, easy sessions with a few race-pace efforts. Rest the day before the shake-out, and lay out your kit.',
+};
+const WEEK_TIP = {
+  1:'Welcome. This week’s tests are your starting point, not a judgement: go steady and note the numbers.',
+  2:'If 100 m of front crawl feels hard, a few lessons or a club session will help more than anything else in this plan.',
+  9:'Get your bike checked over and set up so you’re comfortable on longer rides.',
+  13:'First brick: run for 10 minutes straight after Saturday’s ride. Your legs will feel odd. That’s normal and gets easier.',
+  20:'Practise a transition after Saturday’s ride: rack the bike, helmet off, shoes on, go.',
+  23:'Try your wetsuit before the season starts, and practise getting it off quickly.',
+  25:'Check race-day logistics: start time, your wave, travel, and where transition is.',
+  27:'Open water from now on, if it’s warm enough (about 14°C or more with a wetsuit). Never swim alone: use a lake with lifeguards or a club session.',
+  29:'Practise race-day food and drink on Saturday’s ride: exactly what you’ll have on the day.',
+};
+const r50 = x => Math.max(0, Math.round(x / 50) * 50);
+const r100 = x => Math.max(0, Math.floor(x / 100) * 100);
+const swimMins = m => Math.round(m / 100 * 2.6 + 5);
+function swimTechSteps(m, ph, kind){
+  if (kind === 'test') return ['Warm up: 200 m easy, then 4 × 50 m building speed, 20 s rest.', 'Test: 400 m front crawl at the fastest pace you can hold evenly. Note your time, and log it as a swim.', ...(m > 800 ? [`Cool down: ${m - 800} m easy.`] : [])];
+  if (kind === 'race') return ['Warm up: 300 m easy.', '4 × 50 m at race pace, 30 s rest.', '200 m easy, lifting your head to sight every 6 strokes.', `Cool down: ${Math.max(100, m - 700)} m easy.`];
+  const drills = Math.max(200, r50(m * 0.25)), main = Math.max(100, m - 300 - drills);
+  const drillStep = `Drills: ${drills / 50} × 50 m alternating catch-up, single-arm and fingertip drag, 20 s rest.`;
+  let mainStep;
+  if (kind === 'recovery') mainStep = `${Math.max(1, Math.round(main / 100))} × 100 m easy, 20 s rest.`;
+  else if (ph === 'foundation') mainStep = `${Math.max(1, Math.round(main / 50))} × 50 m front crawl, smooth and relaxed, 20 s rest. Breathe every 3 strokes if you can.`;
+  else if (ph === 'base') mainStep = `${Math.max(1, Math.round(main / 100))} × 100 m steady, 20 s rest. Think long, relaxed strokes.`;
+  else if (ph === 'taper') mainStep = `${Math.max(1, Math.round(main / 100))} × 100 m steady, with the last 25 m of each quick, 20 s rest.`;
+  else mainStep = `${Math.max(1, Math.round(main / 100))} × 100 m: odd ones steady, even ones at race effort, 20 s rest.`;
+  return ['Warm up: 200 m easy, any stroke.', drillStep, mainStep, 'Cool down: 100 m easy.'];
+}
+function swimEnduranceSteps(m, ph, w, kind){
+  if (kind === 'recovery') return ['Warm up: 200 m easy.', `${Math.max(1, Math.round((m - 300) / 100))} × 100 m easy, 30 s rest.`, 'Cool down: 100 m easy.'];
+  if (ph === 'foundation') return ['Warm up: 200 m easy.', `${Math.max(1, Math.round((m - 300) / 100))} × 100 m front crawl at easy effort, 30 s rest. Rest longer if you need to: finishing matters more than speed.`, 'Cool down: 100 m easy.'];
+  if (ph === 'base'){
+    const rep = w < 13 ? 200 : 300, n = Math.max(1, Math.floor((m - 300) / rep)), extra = m - 300 - n * rep;
+    return ['Warm up: 200 m easy.', `${n} × ${rep} m steady, 40 s rest. Keep the pace even.`, `Cool down: ${100 + Math.max(0, extra)} m easy.`];
+  }
+  if (ph === 'build'){
+    const cont = Math.min(1500, r100(m - 300));
+    return ['Warm up: 200 m easy.', `${cont} m without stopping, at a steady effort.${cont === 1500 ? ' That’s your race distance.' : ''} If you have to stop, rest at the wall for a few breaths, then carry on.`, `Cool down: ${Math.max(100, m - 200 - cont)} m easy.`];
+  }
+  // peak and taper: open water, with a pool version
+  return ['Open water, 30–40 min in a wetsuit: practise sighting every 6–8 strokes, swimming straight, a deep-water start and swimming close to others.', 'Never swim alone: use a lake with lifeguards or a club session.', `No open water yet? Swim ${m} m in the pool: 200 m easy, then 3 × 400 m steady lifting your head to sight every 6 strokes, then easy to finish.`];
+}
+function runSteps(min, ph, kind){
+  if (kind === 'race') return [`${min} min easy, with 4 × 20 s quicker strides near the end.`];
+  if (kind === 'recovery' || kind === 'test' || kind === 'holiday' || kind === 'rehearsal' || ph === 'foundation')
+    return [`Run ${min} min at an easy, chatty pace. New to running? Alternate 4 min running with 1 min walking.`, ...(ph === 'foundation' && kind === 'normal' ? ['Finish with 4 × 20 s strides: quick, relaxed running, walking back to recover.'] : [])];
+  if (ph === 'base'){ const k = Math.max(2, Math.floor((min - 15) / 8)); return ['10 min easy.', `${k} × 6 min comfortably hard (you can speak a few words, not chat), 2 min easy jog between.`, 'Easy for the rest of the time.']; }
+  if (ph === 'build'){ const k = Math.min(6, Math.max(3, Math.floor((min - 15) / 5))); return ['10 min easy.', `${k} × 3 min hard, 2 min easy jog between.`, 'Easy for the rest of the time.']; }
+  if (ph === 'peak') return ['10 min easy.', '3 × 8 min at the pace you hope to hold for your 10 km, 2 min easy jog between.', 'Easy for the rest of the time.'];
+  return ['10 min easy.', '3 × 3 min at race pace, 2 min easy jog between.', 'Easy for the rest of the time.'];
+}
+function bikeSteps(min, ph, kind){
+  if (kind === 'race') return [`${min} min easy, with 3 × 1 min at race effort. Check your gears and brakes.`];
+  if (kind === 'recovery' || kind === 'test' || kind === 'holiday' || kind === 'rehearsal' || ph === 'foundation')
+    return [`Easy spin for ${min} min in a light gear, pedalling quickly (about 85–95 turns a minute). A turbo trainer indoors is fine.`];
+  if (ph === 'base'){ const k = Math.max(2, Math.floor((min - 15) / 11)); return ['10 min easy.', `${k} × 8 min steady-hard (breathing harder, can still say a sentence), 3 min easy between.`, 'Easy for the rest of the time.']; }
+  if (ph === 'taper') return ['10 min easy.', '3 × 3 min at race effort, 2 min easy between.', 'Easy for the rest of the time.'];
+  const k = Math.max(3, Math.floor((min - 15) / 8));
+  return ['10 min easy.', `${k} × 5 min hard, 3 min easy between.`, 'Easy for the rest of the time.'];
+}
+function longRideSteps(min, ph){
+  return [`Ride ${min} min at a steady, conversational effort.`,
+    ...(min >= 60 ? ['Eat and drink something every 20 minutes, to practise for race day.'] : []),
+    ...(ph === 'build' || ph === 'peak' ? ['Include 2 × 10 min at the effort you’d hold for a 40 km race.'] : []),
+    ...(ph === 'foundation' ? ['Indoors is fine; outside on the bike you’ll race on is better when you can.'] : [])];
+}
+function longRunSteps(min, ph){
+  return [`Run ${min} min at an easy, conversational pace. Walk breaks are fine.`,
+    ...(ph === 'build' || ph === 'peak' ? ['Run the last 10 min a little faster, at a steady effort.'] : []),
+    ...(min > 45 ? ['Take a drink with you.'] : [])];
+}
+// Weekday (Mon = 0) for each slot. The race and the shake-out follow the race's actual day.
+function planWeek(w, raceDay = 6){
+  const [kind, swA, swB, runQ, bikeQ, lBike, brick, lRun] = PLAN_TABLE[w - 1], ph = phaseOf(w).key, out = [];
+  const add = (day, key, type, title, o) => out.push({ id:`w${w}-${key}`, w, day, type, title, effort:1, ...o });
+  // Tuesday: technique swim (or test)
+  add(1, 'swim1', 'swim', kind === 'test' ? '400 m swim test' : kind === 'race' ? 'Race-week swim' : 'Technique swim',
+    { metres:swA, mins:swimMins(swA), effort:kind === 'test' ? 4 : ph === 'build' || ph === 'peak' ? 3 : 1, steps:swimTechSteps(swA, ph, kind), tag:kind === 'test' ? 'test' : '' });
+  // Wednesday: run
+  const runTitle = kind === 'race' ? 'Race-week run' : kind === 'recovery' || kind === 'test' || kind === 'holiday' || kind === 'rehearsal' ? 'Easy run'
+    : { foundation:'Easy run with strides', base:'Tempo run', build:'Run intervals', peak:'Race-pace run', taper:'Sharpening run' }[ph];
+  add(2, 'run1', 'run', runTitle, { mins:runQ, effort:runTitle.startsWith('Easy') || kind === 'race' ? 1 : ph === 'base' ? 3 : 4, steps:runSteps(runQ, ph, kind) });
+  // Thursday: bike
+  const bm = Math.abs(bikeQ);
+  const bikeTitle = kind === 'race' ? 'Race-week spin' : kind === 'recovery' || kind === 'test' || kind === 'holiday' || kind === 'rehearsal' || ph === 'foundation' ? 'Easy spin'
+    : { base:'Steady bike intervals', build:'Bike intervals', peak:'Bike intervals', taper:'Sharpening ride' }[ph];
+  add(3, 'bike1', 'ride', bikeTitle, { mins:bm, optional:bikeQ < 0, effort:bikeTitle === 'Easy spin' || kind === 'race' ? 1 : ph === 'base' ? 3 : 4, steps:[...bikeSteps(bm, ph, kind), ...(bikeQ < 0 ? ['Optional: drop this one if you’re short on time.'] : [])] });
+  // Friday: endurance or open-water swim
+  if (swB) add(4, 'swim2', 'swim', ph === 'peak' || ph === 'taper' ? 'Open-water swim' : ph === 'build' ? 'Continuous swim' : 'Endurance swim',
+    { metres:swB, mins:swimMins(swB), effort:ph === 'build' ? 2 : 1, steps:swimEnduranceSteps(swB, ph, w, kind) });
+  // Weekend
+  if (kind === 'test'){
+    add(5, 'bike2', 'ride', '10 km bike test', { mins:45, effort:4, tag:'test', steps:['Warm up 10 min easy.', 'Ride 10 km on a flat, safe loop at the best even effort you can hold, and record it in Stride.', 'Cool down 10 min easy. On a turbo instead? Ride 20 min at your best even effort and note the distance.'] });
+    if (brick) add(5, 'brick', 'run', 'Brick run', { mins:brick, effort:1, tag:'brick', steps:[`Straight off the bike (aim for under 5 minutes), run ${brick} min easy.`] });
+    add(6, 'run2', 'run', '5 km run test', { mins:35, effort:4, tag:'test', steps:['Warm up 10 min with easy jogging and walking.', `Run 5 km at the best pace you can hold evenly, and record it in Stride.${w === 1 ? ' Walk breaks are fine.' : ''}`, 'Walk 5 min to cool down.'] });
+  } else if (kind === 'rehearsal'){
+    const rs = 'Race rehearsal';
+    add(5, 'reh-swim', 'swim', `${rs}: swim`, { metres:1000, mins:30, effort:5, tag:'rehearsal', steps:['1000 m in open water at race effort, from a deep-water start if you can, in your race wetsuit.', 'Use exactly the kit, food and drink you’ll race with.'] });
+    add(5, 'reh-ride', 'ride', `${rs}: ride`, { mins:60, effort:5, tag:'rehearsal', steps:['Straight into a 60 min ride at race effort.', 'Practise the transition: wetsuit off, helmet on and fastened before you touch the bike.'] });
+    add(5, 'reh-run', 'run', `${rs}: run`, { mins:25, effort:5, tag:'rehearsal', steps:['Straight into 25 min at your 10 km race pace.', 'Afterwards, note what worked and what to change for the day.'] });
+    add(6, 'run2', 'run', 'Easy run', { mins:lRun, effort:1, steps:[`Run ${lRun} min easy, or rest if you feel tired after Saturday.`] });
+  } else if (kind === 'race'){
+    const shake = Math.max(0, raceDay - 1);
+    out.splice(0, out.length, ...out.filter(s => s.day < raceDay - 2));   // rest two days out, shake-out the day before
+    add(shake, 'shake', 'ride', 'Shake-out', { mins:lBike, effort:1, steps:[`${lBike} min easy with 3 × 30 s quicker, then a 5 min easy jog.`, 'Pack your race bag, check tyre pressures, and rack your bike if the race lets you do it the day before.'] });
+    const R = PLAN_RACES.olympic;
+    add(raceDay, 'race-swim', 'swim', 'Race: swim', { metres:R.swim, mins:swimMins(R.swim), effort:5, tag:'race', steps:['Start steady: the first 200 m always feels hectic. Find your rhythm and sight often.'] });
+    add(raceDay, 'race-ride', 'ride', 'Race: bike', { mins:90, km:R.ride / 1000, effort:5, tag:'race', steps:['Settle in for the first 10 minutes, then hold a strong, even effort. Eat and drink early.'] });
+    add(raceDay, 'race-run', 'run', 'Race: run', { mins:60, km:R.run / 1000, effort:5, tag:'race', steps:['The first kilometre will feel strange. Keep it controlled, then build. Enjoy the finish.'] });
+  } else {
+    add(5, 'bike2', 'ride', brick ? 'Long ride + brick' : 'Long ride', { mins:lBike, effort:kind === 'recovery' ? 1 : 2, steps:longRideSteps(lBike, ph) });
+    if (brick) add(5, 'brick', 'run', 'Brick run', { mins:brick, effort:1, tag:'brick', steps:[`Straight off the bike (aim for under 5 minutes), run ${brick} min easy.`, 'Your legs will feel heavy for the first few minutes: that’s exactly what this trains.'] });
+    add(6, 'run2', 'run', 'Long run', { mins:lRun, effort:kind === 'recovery' ? 1 : 2, steps:longRunSteps(lRun, ph) });
+  }
+  return out.sort((a, b) => a.day - b.day);
+}
+
+// Dates. Plan weeks run Monday to Sunday; week 31 holds the race.
+const dkey = d => { const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+const fromDkey = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDaysD = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const DFS = new Intl.DateTimeFormat('en-GB', { day:'numeric', month:'short' });
+const DFW = new Intl.DateTimeFormat('en-GB', { weekday:'short', day:'numeric', month:'short' });
+const DFL = new Intl.DateTimeFormat('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+let planCache = null;
+function planModel(){
+  const p = S.settings.plan; if (!p || !p.race) return null;
+  const race = fromDkey(p.race), raceDay = (race.getDay() + 6) % 7;
+  const start = addDaysD(race, -raceDay - 7 * (PLAN_WEEKS - 1));   // Monday of week 1
+  const sig = p.race + '|' + p.dist;
+  if (!planCache || planCache.sig !== sig){
+    const sessions = []; for (let w = 1; w <= PLAN_WEEKS; w++) sessions.push(...planWeek(w, raceDay));
+    planCache = { sig, sessions, byId:new Map(sessions.map(s => [s.id, s])) };
+  }
+  return { p, race, raceDay, start, sessions:planCache.sessions, byId:planCache.byId, weekStart:w => addDaysD(start, 7 * (w - 1)) };
+}
+const sessDay = (M, s) => { const mv = M.p.moves && M.p.moves[s.id]; return mv != null ? mv : s.day; };
+const sessDate = (M, s) => addDaysD(M.weekStart(s.w), sessDay(M, s));
+function weekOfDate(M, d){ const w = Math.floor((fromDkey(dkey(d)) - M.start) / (7 * 864e5)) + 1; return w; }
+// Tick sessions off from recorded activities: same day, same sport. Each activity counts for one session.
+function planStatus(M){
+  const today = dkey(now()), joined = M.p.joined || today, marks = M.p.marks || {};
+  const acts = liveActs().filter(a => a.type !== 'walk');
+  const byKey = new Map();
+  for (const a of acts){ const k = dkey(a.start) + '|' + a.type; (byKey.get(k) || byKey.set(k, []).get(k)).push(a); }
+  for (const l of byKey.values()) l.sort((a, b) => a.start - b.start);
+  const used = new Set(), st = new Map();
+  const ordered = [...M.sessions].sort((a, b) => (a.optional ? 1 : 0) - (b.optional ? 1 : 0));
+  for (const s of ordered){
+    const date = dkey(sessDate(M, s)), mark = marks[s.id];
+    let act = null;
+    if (mark !== 'skip'){ act = (byKey.get(date + '|' + s.type) || []).find(a => !used.has(a.id)) || null; if (act) used.add(act.id); }
+    let status;
+    if (mark === 'skip') status = 'skipped';
+    else if (act || mark === 'done') status = 'done';
+    else if (date < joined) status = 'before';
+    else if (date < today) status = s.optional ? 'dropped' : 'missed';
+    else if (date === today) status = 'today';
+    else status = 'upcoming';
+    st.set(s.id, { status, act, date, manual:mark === 'done' && !act });
+  }
+  return st;
+}
+function sessAmount(s){
+  if (s.type === 'swim' && s.metres) return `${s.metres.toLocaleString('en-GB')} m`;
+  if (s.km) return `${s.km} km`;
+  return `${s.mins} min`;
+}
+function sessSub(s){
+  const bits = [sessAmount(s)];
+  if (s.type === 'swim' && s.metres) bits.push(`about ${s.mins} min`);
+  bits.push(EFFORTS[s.effort].toLowerCase());
+  if (s.optional) bits.push('optional');
+  return bits.join(', ');
+}
+function todaysSessions(){
+  const M = planModel(); if (!M) return [];
+  const st = planStatus(M), t = dkey(now());
+  return M.sessions.filter(s => { const x = st.get(s.id); return x.date === t && x.status === 'today'; });
+}
+
+/* plan tab */
+const SPORT_ORDER = ['swim', 'ride', 'run'];
+const SPORT_WORD = { swim:'Swim', ride:'Bike', run:'Run', walk:'Walk' };
+let planWeekShown = null;
+function setPlan(fn){ const p = clone(S.settings.plan || {}); fn(p); setSetting('plan', p); }
+function renderPlan(){
+  const v = $('#v-plan'), M = planModel();
+  if (!M){
+    v.innerHTML = `<div class="scroll-pad"><h1 class="vtitle">Plan</h1>
+      <div class="card plan-setup"><h3>Train for an Olympic triathlon</h3>
+        <p class="note" style="margin:0 0 4px">A ${PLAN_WEEKS}-week plan for your first Olympic-distance race (1500 m swim, 40 km bike, 10 km run), on about 3 hours a week rising to 5. Sessions tick themselves off when you record them.</p>
+        <label class="f" for="p-date">Race date</label><input class="t" id="p-date" type="date">
+        <label class="f" for="p-name">Race name (optional)</label><input class="t" id="p-name" maxlength="60" placeholder="e.g. Lakeside Triathlon">
+        <div class="stack"><button class="btn primary block" data-act="plan-start">Start the plan</button></div>
+        <p class="note">This is a general plan, not medical advice. If you have a health condition or haven’t exercised for a while, check with your GP first.</p>
+      </div></div>`;
+    return;
+  }
+  const st = planStatus(M), today = fromDkey(dkey(now()));
+  const curW = clamp(weekOfDate(M, today), 1, PLAN_WEEKS);
+  const w = planWeekShown == null ? curW : clamp(planWeekShown, 1, PLAN_WEEKS);
+  const ph = phaseOf(w), kind = PLAN_TABLE[w - 1][0];
+  const days = Math.round((fromDkey(M.p.race) - today) / 864e5);
+  const wkS = M.sessions.filter(s => s.w === w), ws = M.weekStart(w);
+  // phase strip
+  const curPh = phaseOf(curW), nextPh = PHASES[PHASES.indexOf(curPh) + 1];
+  const strip = PHASES.map(p => `<div class="ph${p.key === curPh.key && days >= 0 ? ' cur' : ''}" style="flex:${p.to - p.from + 1}" title="${p.name}: weeks ${p.from}–${p.to}"><i></i></div>`).join('');
+  const phLine = today < M.start ? `Five phases: ${PHASES.map(p => p.name.toLowerCase()).join(', ').replace(/, ([^,]*)$/, ' and $1')}.`
+    : days < 0 ? 'Plan complete.'
+    : `<b>${curPh.name}</b>, weeks ${curPh.from}–${curPh.to}${nextPh ? `. ${nextPh.name} starts ${DFW.format(M.weekStart(nextPh.from))}.` : '.'}`;
+  const markerPct = clamp((weekOfDate(M, today) - 1 + ((today.getDay() + 6) % 7) / 7) / PLAN_WEEKS * 100, 0, 100);
+  // planned vs done by sport for the shown week
+  const sums = SPORT_ORDER.map(t => {
+    const ss = wkS.filter(s => s.type === t && !s.optional), plan = ss.reduce((a, s) => a + s.mins, 0);
+    const done = wkS.filter(s => s.type === t).reduce((a, s) => { const x = st.get(s.id); return a + (x.status !== 'done' ? 0 : x.act ? Math.round((x.act.stats?.time || 0) / 60) : s.mins); }, 0);
+    return { t, plan, done };
+  });
+  const totPlan = sums.reduce((a, x) => a + x.plan, 0), totDone = sums.reduce((a, x) => a + x.done, 0);
+  const hm = m => m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`;
+  const dayRows = [0,1,2,3,4,5,6].map(d => {
+    const date = addDaysD(ws, d), ds = wkS.filter(s => sessDay(M, s) === d), isToday = dkey(date) === dkey(today);
+    return `<div class="pday${isToday ? ' today' : ''}"><div class="pdh"><b>${DFW.format(date)}</b>${isToday ? '<span>Today</span>' : ''}</div>
+      ${ds.length ? ds.map(s => sessRow(s, st.get(s.id))).join('') : '<p class="rest">Rest</p>'}</div>`;
+  }).join('');
+  const before = today < M.start;
+  v.innerHTML = `<div class="scroll-pad wide"><div class="vhead"><h1 class="vtitle">Plan</h1><button class="iconbtn" data-act="plan-settings" aria-label="Plan settings">${I.edit}</button></div>
+    <div class="card racecard">
+      <div class="rc-top"><div><h2>${esc(M.p.name || PLAN_RACES.olympic.name)}</h2><p>${DFL.format(fromDkey(M.p.race))}</p></div>
+        <div class="count">${days > 0 ? `<b class="num">${days}</b><span>${days === 1 ? 'day to go' : 'days to go'}</span>` : days === 0 ? '<b class="num">Today</b><span>race day</span>' : '<b class="num">Done</b><span>race complete</span>'}</div></div>
+      <div class="phases" aria-hidden="true">${strip}${days >= 0 && !before ? `<em style="left:${markerPct}%"></em>` : ''}</div>
+      <p class="ph-now">${phLine}</p>
+    </div>
+    ${before ? `<p class="banner">Week 1 starts on ${DFL.format(M.start)}. Until then, keep moving with two or three easy sessions a week.</p>` : ''}
+    <div class="weeknav"><button class="iconbtn" data-pweek="${w - 1}" ${w <= 1 ? 'disabled' : ''} aria-label="Previous week">${I.back}</button>
+      <div><b>Week ${w} of ${PLAN_WEEKS}</b><span>${DFS.format(ws)} – ${DFS.format(addDaysD(ws, 6))}, ${ph.name.toLowerCase()}</span></div>
+      <button class="iconbtn flip" data-pweek="${w + 1}" ${w >= PLAN_WEEKS ? 'disabled' : ''} aria-label="Next week">${I.back}</button></div>
+    ${w !== curW && !before ? `<p style="text-align:center;margin:-4px 0 10px"><button class="linkbtn" data-pweek="${curW}">Back to this week</button></p>` : ''}
+    <div class="card weekcard">
+      <p class="wk-about">${esc(WEEK_KIND_NOTE[kind] || ph.about)}</p>
+      ${WEEK_TIP[w] ? `<p class="wk-tip">${esc(WEEK_TIP[w])}</p>` : ''}
+      <div class="wk-sum"><div class="wk-tot"><b class="num">${hm(totDone)}</b><span>of ${hm(totPlan)} done</span></div>
+        ${sums.map(x => `<div class="wk-bar"><span>${SPORT_WORD[x.t]}</span><div class="track"><i style="width:${x.plan ? clamp(x.done / x.plan * 100, 0, 100) : 0}%;background:var(--${x.t})"></i></div><small>${x.done}/${x.plan} min</small></div>`).join('')}</div>
+    </div>
+    <div class="pdays">${dayRows}</div>
+  </div>`;
+}
+const STATUS_TXT = { done:'Done', skipped:'Skipped', missed:'Missed', dropped:'Not done', today:'Today', upcoming:'', before:'' };
+function sessRow(s, x){
+  return `<button class="sess s-${x.status}${s.optional ? ' opt' : ''}" data-sess="${s.id}" style="--c:var(--${s.type})">
+    <span class="bar"></span><span class="tx"><b>${esc(s.title)}</b><small>${esc(sessSub(s))}</small></span>
+    ${x.status === 'done' ? `<span class="ok" aria-label="Done">${I.check}</span>` : STATUS_TXT[x.status] && x.status !== 'today' ? `<span class="stx">${STATUS_TXT[x.status]}</span>` : ''}</button>`;
+}
+function openSession(id){
+  const M = planModel(); if (!M) return; const s = M.byId.get(id); if (!s) return;
+  const x = planStatus(M).get(id), date = sessDate(M, s), ws = M.weekStart(s.w);
+  const canRecord = x.date === dkey(now()) && x.status !== 'done';
+  const moveBtns = [0,1,2,3,4,5,6].map(d => `<button data-move="${d}" aria-pressed="${sessDay(M, s) === d}">${'MTWTFSS'[d]}<small>${addDaysD(ws, d).getDate()}</small></button>`).join('');
+  openSheet('session', `<div class="sess-head" style="--c:var(--${s.type})"><span class="bar"></span><div><h2>${esc(s.title)}</h2>
+      <p>${SPORT_WORD[s.type]}, ${DFW.format(date)}, week ${s.w}</p></div></div>
+    <div class="sess-facts"><span><b>${esc(sessAmount(s))}</b>${s.type === 'swim' && s.metres ? `<small>about ${s.mins} min</small>` : '<small>planned</small>'}</span><span><b>${EFFORTS[s.effort]}</b><small>effort</small></span>${s.optional ? '<span><b>Optional</b><small>if you have time</small></span>' : ''}</div>
+    <ol class="steps">${s.steps.map(t => `<li>${esc(t)}</li>`).join('')}</ol>
+    ${x.status === 'done' ? `<p class="banner">${x.act ? `Done: <b>${esc(x.act.name)}</b>, ${statText(x.act)}.` : 'Marked as done.'}</p>` : x.status === 'skipped' ? '<p class="banner">Skipped.</p>' : ''}
+    <div class="stack">
+      ${canRecord && s.type !== 'swim' ? `<button class="btn acc block" data-act="sess-record" data-id="${s.id}">Record it now</button>` : ''}
+      ${x.status !== 'done' && x.status !== 'skipped' ? `<button class="btn ${canRecord && s.type !== 'swim' ? '' : 'primary '}block" data-act="sess-log" data-id="${s.id}">${I.edit}Log it</button>
+        <div class="btnrow" style="margin:0"><button class="btn" data-act="sess-done" data-id="${s.id}">Mark as done</button><button class="btn" data-act="sess-skip" data-id="${s.id}">Skip</button></div>` : ''}
+      ${x.act ? `<button class="btn block" data-act="sess-open" data-id="${x.act.id}">Open the activity</button>` : ''}
+      ${(M.p.marks || {})[s.id] ? `<button class="btn block" data-act="sess-undo" data-id="${s.id}">Undo</button>` : ''}
+    </div>
+    ${s.tag !== 'race' ? `<label class="f">Move to another day this week</label><div class="moves" data-id="${s.id}">${moveBtns}</div>` : ''}`);
+}
+function statText(a){
+  const st = a.stats || {}, bits = [];
+  if (st.dist > 0) bits.push(distText(st.dist, a.type));
+  bits.push(fmtDur(st.time));
+  return bits.join(', ');
+}
+function openPlanSettings(){
+  const p = S.settings.plan || {};
+  openSheet('plan-settings', `<h2>Plan settings</h2>
+    <label class="f" for="p-date">Race date</label><input class="t" id="p-date" type="date" value="${esc(p.race || '')}">
+    <label class="f" for="p-name">Race name (optional)</label><input class="t" id="p-name" maxlength="60" value="${esc(p.name || '')}">
+    <div class="stack"><button class="btn primary block" data-act="plan-save">Save</button><button class="btn danger block" data-act="plan-stop">Stop the plan</button><button class="btn block" data-act="close-sheet">Cancel</button></div>
+    <p class="note">Your activities stay if you stop the plan; only the plan’s ticks, skips and moves are cleared.</p>`);
+}
+function todayCard(){
+  const el = $('#today-plan'); if (!el) return;
+  if (rec){ el.innerHTML = ''; return; }
+  const t = todaysSessions();
+  el.innerHTML = t.length ? `<button class="todayplan" data-sess="${t[0].id}" style="--c:var(--${t[0].type})"><span class="bar"></span><span class="tx"><small>Today’s plan${t.length > 1 ? ` (1 of ${t.length})` : ''}</small><b>${esc(t[0].title)}</b> <span>${esc(sessSub(t[0]))}</span></span>${I.chev}</button>` : '';
+}
+
+/* manual activities: pool swims, turbo rides, treadmill runs */
+function parseDur(str){
+  const p = String(str || '').trim().split(':').map(x => x.trim());
+  if (!p.length || p.some(x => !/^\d+(\.\d+)?$/.test(x))) return NaN;
+  const n = p.map(Number);
+  return n.length === 1 ? n[0] * 60 : n.length === 2 ? n[0] * 60 + n[1] : n[0] * 3600 + n[1] * 60 + n[2];
+}
+function openManual(pre = {}){
+  const type = pre.type || 'swim', d = pre.date ? fromDkey(pre.date) : new Date();
+  const editing = !!pre.id, a = pre.id ? S.acts[pre.id] : null;
+  const start = a ? new Date(a.start) : d;
+  const tm = a ? TF.format(start) : (pre.date && pre.date !== dkey(now()) ? '07:00' : TF.format(new Date()));
+  const distV = a && a.stats.dist > 0 ? (a.type === 'swim' ? Math.round(a.stats.dist) : +(a.stats.dist / U().d).toFixed(2)) : (pre.metres || (pre.km ? (S.settings.units === 'mi' ? +(pre.km / 1.609344).toFixed(2) : pre.km) : ''));
+  openSheet('manual', `<h2>${editing ? 'Edit activity' : 'Log an activity'}</h2>
+    ${editing ? '' : '<p class="note" style="margin:-6px 0 6px">For pool swims, turbo rides, treadmill runs, or anything you recorded elsewhere.</p>'}
+    <label class="f">Type</label>${typeSeg(a ? a.type : type, 'mtype')}
+    <div class="frow"><div><label class="f" for="m-date">Date</label><input class="t" id="m-date" type="date" value="${dkey(start)}"></div>
+      <div><label class="f" for="m-time">Start time</label><input class="t" id="m-time" type="time" value="${tm}"></div></div>
+    <div class="frow"><div><label class="f" for="m-dur">Time taken</label><input class="t" id="m-dur" inputmode="decimal" placeholder="mm:ss or h:mm:ss" value="${a ? fmtDur(a.stats.time) : pre.mins ? pre.mins + ':00' : ''}"></div>
+      <div><label class="f" for="m-dist" id="m-dist-l">Distance</label><input class="t" id="m-dist" inputmode="decimal" placeholder="optional" value="${distV}"></div></div>
+    <label class="f" for="f-name">Name</label><input class="t" id="f-name" maxlength="80" value="${esc(a ? a.name : pre.title || '')}" placeholder="optional">
+    <label class="f" for="f-notes">Notes</label><textarea class="t" id="f-notes" maxlength="2000">${esc(a ? a.notes || '' : '')}</textarea>
+    <p class="msg" id="m-msg"></p>
+    <div class="stack"><button class="btn primary block" data-act="manual-save" ${editing ? `data-id="${a.id}"` : ''}>${editing ? 'Save changes' : 'Save'}</button><button class="btn block" data-act="close-sheet">Cancel</button></div>`);
+  manualUnits();
+}
+function manualUnits(){
+  const t = ($('#sheet [aria-checked="true"][data-mtype]') || {}).dataset?.mtype || 'swim';
+  const l = $('#m-dist-l'); if (l) l.textContent = `Distance (${t === 'swim' ? 'm' : U().dl})`;
+}
+function saveManual(id){
+  const t = ($('#sheet [aria-checked="true"][data-mtype]') || {}).dataset?.mtype || 'swim';
+  const date = $('#m-date').value, time = $('#m-time').value || '07:00', secs = parseDur($('#m-dur').value);
+  const dv = $('#m-dist').value.trim(), distIn = dv === '' ? 0 : parseFloat(dv.replace(',', '.'));
+  const msg = m => { $('#m-msg').textContent = m; };
+  if (!date) return msg('Choose a date.');
+  if (!(secs > 0)) return msg('Enter the time taken, like 45:00 or 1:05:30.');
+  if (!(distIn >= 0) || !isFinite(distIn)) return msg('Distance should be a number, or leave it empty.');
+  const dist = t === 'swim' ? distIn : distIn * U().d;
+  const [hh, mm] = time.split(':').map(Number), start = fromDkey(date); start.setHours(hh || 0, mm || 0, 0, 0);
+  const a = id ? S.acts[id] : { id:newId(), created:now(), manual:true, trackRev:1 };
+  a.type = t; a.start = start.getTime(); a.manual = true;
+  a.name = $('#f-name').value.trim() || defaultName(t, a.start); a.notes = $('#f-notes').value.trim();
+  // A logged effort at a standard distance (a 400 m swim test, a 5 km run…) counts as a best for that distance.
+  const best = {}; (BESTS[t] || []).forEach(([D]) => { if (dist > 0 && Math.abs(dist - D) <= D * 0.01) best[D] = Math.round(secs * D / dist); });
+  a.stats = { dist:Math.round(dist), time:Math.round(secs), moving:Math.round(secs), gain:0, loss:0, eleMin:null, eleMax:null, maxSpeed:0, best, eleSrc:null };
+  a.pv = '';
+  saveAct(a, false);
+  closeLayer();
+  setTimeout(() => { render(); if (S.detail === a.id) renderDetail(); toast(id ? 'Activity updated.' : `Logged “${a.name}”.`); }, 50);
+}
+
+/* stacked weekly bars (time by sport) */
+function stackChart(el, series, labels, fmt){
+  const W = Math.max(260, el.clientWidth || 320), H = 160, L0 = 34, R0 = 4, T0 = 10, B0 = 24, n = labels.length;
+  const totals = labels.map((_, i) => series.reduce((a, s) => a + s.vals[i], 0));
+  const hi = Math.max(1, ...totals), ticks = niceTicks(0, hi, 3); if (ticks[ticks.length - 1] < hi) ticks.push(+(ticks[ticks.length - 1] + (ticks[1] - ticks[0])).toFixed(6));
+  const top = ticks[ticks.length - 1], bw = (W - L0 - R0) / n, Y = v => T0 + (1 - v / top) * (H - T0 - B0);
+  let bars = '';
+  for (let i = 0; i < n; i++){
+    let acc = 0; const x = L0 + i * bw + 1, w = bw - 2, live = series.filter(s => s.vals[i] > 0);
+    live.forEach((s, j) => {
+      const y0 = Y(acc), y1 = Y(acc + s.vals[i]); acc += s.vals[i];
+      const h = y0 - y1, gap = j < live.length - 1 ? 2 : 0;          // 2px surface gap between segments
+      if (h - gap <= 0.5) return;
+      const r = j === live.length - 1 ? Math.min(4, w / 2, h) : 0;
+      bars += `<path d="M${x} ${y0 - (j ? 0 : 0)}V${y1 + r + gap}${r ? `Q${x} ${y1 + gap} ${x + r} ${y1 + gap}H${x + w - r}Q${x + w} ${y1 + gap} ${x + w} ${y1 + r + gap}` : `H${x + w}`}V${y0}Z" fill="${s.color}"/>`;
+    });
+  }
+  el.innerHTML = `<div class="legend">${series.map(s => `<span><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join('')}</div>
+    <svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Training time per week by sport for the last 12 weeks">
+    <g class="grid">${ticks.map(t => `<line x1="${L0}" x2="${W - R0}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${L0 - 6}" y="${Y(t) + 4}" text-anchor="end">${t}</text>`).join('')}</g>
+    ${bars}${labels.map((l, i) => (i % 3 === 2 || i === n - 1) && i !== n - 2 ? `<text x="${L0 + i * bw + bw / 2}" y="${H - 6}" text-anchor="middle">${i === n - 1 ? 'This wk' : esc(l)}</text>` : '').join('')}
+    <rect class="hl" x="-100" y="${T0}" width="${bw}" height="${H - T0 - B0}" fill="var(--ink)" fill-opacity=".06"/></svg><div class="tip" hidden></div>`;
+  const svg = el.querySelector('svg'), tip = el.querySelector('.tip'), hl = svg.querySelector('.hl');
+  const show = ev => { const r = svg.getBoundingClientRect(); const i = clamp(Math.floor(((ev.clientX - r.left) / r.width * W - L0) / bw), 0, n - 1);
+    hl.setAttribute('x', L0 + i * bw); tip.hidden = false;
+    tip.textContent = `Week of ${labels[i]}: ${fmt(totals[i])}` + (totals[i] > 0 ? ' (' + series.filter(s => s.vals[i] > 0).map(s => `${s.label} ${fmt(s.vals[i])}`).join(', ') + ')' : '');
+    tip.style.left = clamp((L0 + i * bw + bw / 2) / W * el.clientWidth, 120, el.clientWidth - 120) + 'px'; };
+  svg.addEventListener('pointerdown', show); svg.addEventListener('pointermove', show);
+  svg.addEventListener('pointerleave', () => { tip.hidden = true; hl.setAttribute('x', -100); });
 }
 
 /* ---------- sheets ---------- */
@@ -1556,7 +2123,7 @@ function gpxOf(a, trk){
   const segs = decodeTrack(trk), dem = eleArrFor(a, trk); let o = 0;
   const xmlEsc = s => esc(s);
   const body = segs.map(s => '<trkseg>' + s.map((p, i) => { const e = dem ? dem[o + i] : p[2]; return `<trkpt lat="${p[0].toFixed(6)}" lon="${p[1].toFixed(6)}">${e != null ? `<ele>${e.toFixed(1)}</ele>` : ''}<time>${new Date(p[3]).toISOString()}</time></trkpt>`; }).join('') + (o += s.length, '</trkseg>')).join('\n');
-  const gt = { run:'running', ride:'cycling', walk:'walking' }[a.type];
+  const gt = { run:'running', ride:'cycling', walk:'walking', swim:'swimming' }[a.type];
   return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Stride" xmlns="http://www.topografix.com/GPX/1/1">\n<metadata><time>${new Date(a.start).toISOString()}</time></metadata>\n<trk><name>${xmlEsc(a.name)}</name><type>${gt}</type>\n${body}\n</trk>\n</gpx>\n`;
 }
 async function exportGpx(){
@@ -1580,7 +2147,7 @@ function parseGpx(text){
   segs.sort((a, b) => a[0][3] - b[0][3]);
   const nameEl = tag(doc, 'trk') && tag(tag(doc, 'trk'), 'name'), typeEl = tag(doc, 'type');
   const tt = (typeEl && typeEl.textContent || '').toLowerCase();
-  const type = /ride|bik|cycl/.test(tt) ? 'ride' : /walk|hik/.test(tt) ? 'walk' : /run/.test(tt) ? 'run' : (S.filter in TYPES ? S.filter : 'run');
+  const type = /ride|bik|cycl/.test(tt) ? 'ride' : /walk|hik/.test(tt) ? 'walk' : /swim/.test(tt) ? 'swim' : /run/.test(tt) ? 'run' : (S.filter in TYPES ? S.filter : 'run');
   return { segs, name:nameEl ? nameEl.textContent.trim() : '', type };
 }
 async function importGpx(file){
@@ -1595,12 +2162,12 @@ async function importGpx(file){
   } catch(e){ toast(e.message || 'Couldn’t import that file.', 5000); }
 }
 async function saveBackup(){
-  const missing = liveActs().filter(a => !getTrack(a.id) && a.stats?.dist > 0);
+  const missing = liveActs().filter(a => !a.manual && !getTrack(a.id) && a.stats?.dist > 0);
   if (missing.length && store.user){ toast('Getting routes from the cloud…'); for (const a of missing) await fetchTrack(a.id); }
   const tracks = {}; liveActs().forEach(a => { const t = getTrack(a.id); if (t) tracks[a.id] = t; });
   const data = { app:APP, kind:'stride-backup', version:1, exportedAt:new Date().toISOString(), settings:S.settings, activities:liveActs(), tracks };
   download(`stride-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data), 'application/json');
-  const still = liveActs().filter(a => !tracks[a.id] && a.stats?.dist > 0).length;
+  const still = liveActs().filter(a => !a.manual && !tracks[a.id] && a.stats?.dist > 0).length;
   toast(still ? `Backup saved. ${still} route${still > 1 ? 's' : ''} couldn’t be included; sign in to fetch them.` : 'Backup saved.', still ? 5000 : 2500);
 }
 async function restoreBackup(file){
@@ -1639,6 +2206,11 @@ document.addEventListener('click', e => {
   if (d.sfilter){ S.sfilter = d.sfilter; renderStats(); return; }
   if (d.type && b.closest('#type-pick')){ if (rec) return; S.recType = d.type; S.settings.defType = d.type; saveLocal(); render(); renderRecMapTrack(); return; }
   if (d.stype){ $$('#sheet [data-stype]').forEach(x => x.setAttribute('aria-checked', String(x === b))); return; }
+  if (d.mtype){ $$('#sheet [data-mtype]').forEach(x => x.setAttribute('aria-checked', String(x === b))); manualUnits(); return; }
+  if (d.sess){ openSession(d.sess); return; }
+  if (d.pweek){ planWeekShown = +d.pweek; renderPlan(); $('#v-plan').scrollTop = 0; return; }
+  if (d.move != null && b.closest('.moves')){ const id = b.closest('.moves').dataset.id, day = +d.move, s = planModel()?.byId.get(id);
+    setPlan(p => { p.moves ||= {}; if (s && s.day === day) delete p.moves[id]; else p.moves[id] = day; }); closeLayer(); toast(`Moved to ${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][day]}.`); return; }
   if (d.set){ setSetting(d.set, d.val); return; }
   if (d.toggle){ setSetting(d.toggle, !S.settings[d.toggle]); if (d.toggle === 'keepAwake' && rec){ S.settings.keepAwake ? wakeOn() : wakeOff(); } return; }
   if (d.elesrc){ const a = S.acts[S.detail], trk = getTrack(S.detail); if (!a || !trk) return; a.eleSrc = d.elesrc; restat(a, trk); saveAct(a); renderDetail(); return; }
@@ -1656,7 +2228,7 @@ document.addEventListener('click', e => {
       break;
     case 'close-sheet': closeLayer(); break;
     case 'back': closeLayer(); break;
-    case 'edit': openEdit(); break;
+    case 'edit': { const a = S.acts[S.detail]; if (a && a.manual) openManual({ id:a.id }); else openEdit(); break; }
     case 'save-edit': {
       const a = S.acts[S.detail]; if (!a) break;
       const t = sheetType(), typeChanged = t !== a.type;
@@ -1676,6 +2248,30 @@ document.addEventListener('click', e => {
     case 'gate-skip': gateSkipped = true; renderGate(); break;
     case 'app-signin': appSignIn(); break;
     case 'get-update': NP.Browser.open({ url:APK_URL }).catch(() => {}); break;
+    case 'add-manual': openManual({ type:S.filter in TYPES ? S.filter : 'swim' }); break;
+    case 'manual-save': saveManual(d.id); break;
+    case 'plan-start': case 'plan-save': {
+      const date = $('#p-date').value, name = $('#p-name').value.trim();
+      if (!date){ toast('Choose your race date.'); break; }
+      if (fromDkey(date) < fromDkey(dkey(now()))){ toast('Choose a race date in the future.'); break; }
+      const fresh = d.act === 'plan-start' || (S.settings.plan && S.settings.plan.race !== date);
+      setPlan(p => { p.race = date; p.name = name; p.dist = 'olympic'; if (fresh){ p.joined = dkey(now()); p.marks = {}; p.moves = {}; } });
+      planWeekShown = null; if (d.act === 'plan-save') closeLayer();
+      toast(d.act === 'plan-start' ? 'Plan ready. Good luck!' : 'Plan updated.'); break;
+    }
+    case 'plan-settings': openPlanSettings(); break;
+    case 'plan-stop':
+      if (b.dataset.armed){ setSetting('plan', null); closeLayer(); toast('Plan stopped.'); }
+      else { b.dataset.armed = '1'; b.textContent = 'Tap again to stop the plan'; b.classList.add('solid'); }
+      break;
+    case 'sess-done': case 'sess-skip': case 'sess-undo': {
+      const id = d.id; setPlan(p => { p.marks ||= {}; if (d.act === 'sess-undo') delete p.marks[id]; else p.marks[id] = d.act === 'sess-done' ? 'done' : 'skip'; });
+      closeLayer(); toast(d.act === 'sess-done' ? 'Marked as done.' : d.act === 'sess-skip' ? 'Skipped.' : 'Undone.'); break;
+    }
+    case 'sess-record': { const s = planModel()?.byId.get(d.id); closeLayer(); if (s){ S.recType = s.type; S.settings.defType = s.type; saveLocal(); } setTimeout(() => showTab('record'), 60); break; }
+    case 'sess-log': { const M = planModel(), s = M?.byId.get(d.id); if (!s) break; closeLayer();
+      setTimeout(() => openManual({ type:s.type, date:dkey(sessDate(M, s)), mins:s.mins, metres:s.metres, km:s.km, title:s.title }), 80); break; }
+    case 'sess-open': closeSheetNow(); history.replaceState({ layer:'detail' }, ''); openDetail(d.id, false); break;
   }
 });
 $('#detail').addEventListener('scroll', () => { const t = $('#d-ttl'); if (t) t.style.opacity = $('#detail').scrollTop > 240 ? '1' : '0'; }, { passive:true });
