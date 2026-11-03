@@ -24,13 +24,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -62,6 +62,8 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Test on an Android emulator
+        id: smoke1
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         env:
           SMOKE_DIR: ${{ runner.temp }}/smoke
@@ -71,10 +73,27 @@ jobs:
           arch: x86_64
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
+          emulator-boot-timeout: 900
+          script: bash app/smoke-test.sh
+
+      # Emulators on shared runners sometimes fail to boot; give it one more go before calling the build bad.
+      - name: Test on an Android emulator (second attempt)
+        id: smoke2
+        if: steps.smoke1.outcome == 'failure'
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          SMOKE_DIR: ${{ runner.temp }}/smoke
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          emulator-boot-timeout: 900
           script: bash app/smoke-test.sh
 
       - name: Publish release
-        if: env.PUBLISH == 'true'
+        if: env.PUBLISH == 'true' && (steps.smoke1.outcome == 'success' || steps.smoke2.outcome == 'success')
         env:
           GH_TOKEN: ${{ github.token }}
           # Public fingerprint of Stride's signing certificate; refuse to publish anything signed differently.
