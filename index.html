@@ -233,6 +233,16 @@ textarea.t{min-height:90px;resize:vertical}
 .pin{width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .pin.s{background:var(--good)} .pin.e{background:var(--ink)}
 .dmap.editing{height:72vh}
+.mapov{position:absolute;inset:0;pointer-events:none;z-index:650}
+.mapov>*{pointer-events:auto}
+.route-key{position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:6px;background:var(--surface);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:600;color:var(--ink2);box-shadow:0 1px 6px rgba(0,0,0,.18)}
+.route-key i{display:block;width:56px;height:6px;border-radius:3px}
+.replayctl{position:absolute;left:10px;bottom:22px;display:flex;align-items:center;gap:8px}
+.replaybtn{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 14px 0 10px;border-radius:999px;background:var(--surface);font-weight:700;font-size:15px;box-shadow:0 1px 6px rgba(0,0,0,.2)}
+.replaybtn svg{width:20px;height:20px}
+.replaylbl{background:var(--surface);border-radius:999px;padding:4px 10px;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;box-shadow:0 1px 6px rgba(0,0,0,.18)}
+.replaylbl:empty{display:none}
+.replaydot{width:22px;height:22px;border-radius:50%;background:var(--accent);border:4px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.45)}
 .gapbar{position:absolute;left:10px;right:10px;bottom:10px;z-index:900;background:var(--surface);border-radius:14px;padding:10px 12px;box-shadow:0 4px 18px rgba(0,0,0,.25)}
 .gapbar p{margin:0 0 4px;font-size:14px;color:var(--ink2)}
 .gapbar .btnrow{margin-top:4px}
@@ -1079,6 +1089,50 @@ function drawRoute(map, segs, gs, t0, col, ds){
   return out;
 }
 // Time without GPS: from the last real fix before each gap to the first one after, skipping points you drew in.
+// Colour by progress: one hue from start to finish, getting more prominent against the map as the activity goes on
+// (darker on light maps, brighter on dark ones), so later passes over the same ground stand out and sit on top.
+function hexToOklch(hex){
+  const n = parseInt(hex.replace('#', ''), 16), c = [n >> 16 & 255, n >> 8 & 255, n & 255].map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+  const l = Math.cbrt(0.4122214708 * c[0] + 0.5363325363 * c[1] + 0.0514459929 * c[2]), m = Math.cbrt(0.2119034982 * c[0] + 0.6806995451 * c[1] + 0.1073969566 * c[2]), q = Math.cbrt(0.0883024619 * c[0] + 0.2817188376 * c[1] + 0.6299787005 * c[2]);
+  const L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * q, a = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * q, b = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * q;
+  return [L, Math.hypot(a, b), Math.atan2(b, a)];
+}
+function oklchToHex(L, C, h){
+  const a = C * Math.cos(h), b = C * Math.sin(h);
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3, m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3, q = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3;
+  const rgb = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * q, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * q, -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * q];
+  return '#' + rgb.map(v => { v = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(Math.max(0, v), 1 / 2.4) - 0.055; return Math.round(clamp(v, 0, 1) * 255).toString(16).padStart(2, '0'); }).join('');
+}
+function progressRamp(col){
+  const [L, C, h] = hexToOklch(col), dark = document.documentElement.dataset.theme === 'dark';
+  const L0 = dark ? 0.45 : 0.82, L1 = dark ? 0.88 : 0.36, C0 = C * 0.5, C1 = Math.min(C, 0.2);
+  return f => oklchToHex(L0 + (L1 - L0) * f, C0 + (C1 - C0) * f, h);
+}
+function drawProgressRoute(map, segs, gs, t0, col, ds = new Set()){
+  const ramp = progressRamp(col), dark = document.documentElement.dataset.theme === 'dark', out = [], links = [];
+  let tot = 0;
+  for (const sg of segs) for (let i = 1; i < sg.length; i++){
+    const a = sg[i - 1], b = sg[i], k = gapKey(t0, b[3]), cls = ds.has(k) || ds.has(gapKey(t0, a[3])) ? 'drawn' : gs.has(k) ? 'gap' : 'gps', d = hav(a, b);
+    links.push({ a, b, cls, c0:tot, first:i === 1 }); tot += d;
+  }
+  if (!links.length) return out;
+  // casing under everything except the dotted gaps
+  const { solid, drawn } = routePieces(segs, gs, t0, ds);
+  [...solid, ...drawn].forEach(ll => out.push(L.polyline(ll, { color:dark ? '#0e1418' : '#fff', weight:9, opacity:.85, interactive:false }).addTo(map)));
+  // coloured chunks in time order, so later passes are drawn on top
+  const chunk = tot / 90; let cur = null;
+  const flush = () => { if (!cur || cur.ll.length < 2) return; const f = clamp((cur.c0 + cur.c1) / 2 / (tot || 1), 0, 1);
+    out.push(L.polyline(cur.ll, cur.cls === 'gap' ? { color:ramp(f), weight:4, opacity:.9, dashArray:'2 10', lineCap:'round', interactive:false }
+      : { color:ramp(f), weight:5, opacity:cur.cls === 'drawn' ? .55 : 1, interactive:false, className:cur.cls === 'drawn' ? 'drawn-line prog' : 'prog' }).addTo(map)); };
+  for (const lk of links){
+    const end = lk.c0 + hav(lk.a, lk.b);
+    if (!cur || cur.cls !== lk.cls || lk.first || end - cur.c0 > chunk){ flush(); cur = { cls:lk.cls, ll:[[lk.a[0], lk.a[1]]], c0:lk.c0, c1:lk.c0 }; }
+    cur.ll.push([lk.b[0], lk.b[1]]); cur.c1 = end;
+  }
+  flush();
+  out.key = [ramp(0), ramp(0.5), ramp(1)];
+  return out;
+}
 function gapSecondsOf(segs, gs, t0, ds = new Set()){
   let g = 0;
   for (const sg of segs) for (let i = 1; i < sg.length; i++) if (gs.has(gapKey(t0, sg[i][3]))){
@@ -1566,7 +1620,7 @@ function barChart(el, vals, labels, color, fmt){
 }
 
 /* ---------- activity detail ---------- */
-let dMap = null, dScrub = null, dCharts = [], dA = null, dRoute = [];
+let dMap = null, dScrub = null, dCharts = [], dA = null, dRoute = [], dReplayCtx = null;
 function openDetail(id, push = true){
   S.detail = id;
   if (push) history.pushState({ layer:'detail' }, '');
@@ -1574,7 +1628,7 @@ function openDetail(id, push = true){
   renderDetail();
 }
 function closeDetailNow(){
-  endGapEdit();
+  endGapEdit(); stopReplay();
   S.detail = null; $('#detail').hidden = true;
   if (dMap){ dMap.remove(); dMap = null; } dCharts = []; dA = null;
   render();
@@ -1620,6 +1674,7 @@ async function renderDetail(fromRemote){
       <div class="btnrow" style="margin-top:16px">${a.manual ? '' : `<button class="btn" data-act="gpx">${I.down}Export GPX</button>`}<button class="btn danger" data-act="delete">${I.trash}Delete</button></div>
     </div>`;
   if (sameView) el.scrollTop = scrollY;
+  stopReplay(); dReplayCtx = null;
   if (dMap){ dMap.remove(); dMap = null; } dCharts = []; dScrub = null; dA = null;
   const parts = $('#d-trackparts');
   if (a.manual) return;
@@ -1639,7 +1694,11 @@ async function renderDetail(fromRemote){
   dMap = makeMap($('#d-map'));
   if (dMap){
     const col = cssVar('--' + a.type), lines = [];
-    dRoute = drawRoute(dMap, segs, gapSetOf(trk), trk.t0, col, drawnSetOf(trk)); lines.push(...dRoute);
+    dRoute = drawProgressRoute(dMap, segs, gapSetOf(trk), trk.t0, col, drawnSetOf(trk)); lines.push(...dRoute);
+    const ov = document.createElement('div'); ov.className = 'mapov';
+    ov.innerHTML = `<div class="route-key" aria-label="Line colour shows progress from start to finish"><span>Start</span><i style="background:linear-gradient(90deg,${dRoute.key.join(',')})"></i><span>Finish</span></div>
+      <div class="replayctl"><button class="replaybtn" data-act="replay" aria-label="Replay the route">${I.play}<span>Replay</span></button><span class="replaylbl" aria-live="off"></span></div>`;
+    $('#d-map').appendChild(ov); L.DomEvent.disableClickPropagation(ov);
     const pin = c => L.divIcon({ className:'', html:`<div class="pin ${c}"></div>`, iconSize:[18,18], iconAnchor:[9,9] });
     L.marker([A.pts[0][0], A.pts[0][1]], { icon:pin('s'), interactive:false, keyboard:false }).addTo(dMap);
     L.marker([A.pts[A.n-1][0], A.pts[A.n-1][1]], { icon:pin('e'), interactive:false, keyboard:false }).addTo(dMap);
@@ -1664,6 +1723,7 @@ async function renderDetail(fromRemote){
     dCharts.forEach(c => c && c.show(k == null ? null : k));
     if (dScrub){ if (k == null) dScrub.setOpacity(0); else { const p = A.pts[idx[k]]; dScrub.setLatLng([p[0], p[1]]).setOpacity(1); } }
   };
+  dReplayCtx = { A, idx, segs, col:cssVar('--' + a.type), type:a.type };
   const xFmt = v => isSwim ? Math.round(v) + ' m' : (+v.toFixed(1)) + ' ' + u.dl;
   if (A.ele){
     dCharts.push(lineChart($('#c-ele'), { xs, ys:idx.map(i => A.ele[i] == null ? null : A.ele[i] / u.e), color:cssVar('--ele'), area:true, h:140, minSpan:20, label:'Elevation profile',
@@ -2369,12 +2429,64 @@ function stackChart(el, series, labels, fmt){
   svg.addEventListener('pointerleave', () => { tip.hidden = true; hl.setAttribute('x', -100); });
 }
 
+/* ---------- replay ---------- */
+// Redraws the route over about 15 seconds with a moving dot, at your real relative speed (pauses skipped).
+// The full route fades back while it plays, and the charts follow along.
+let replay = null;
+const REPLAY_MS = 15000;
+function toggleReplay(){
+  if (!dReplayCtx || !dMap) return;
+  if (replay && replay.playing){ replay.playing = false; setReplayBtn(); return; }
+  if (!replay || replay.done) startReplay(); else { replay.playing = true; replay.last = performance.now(); setReplayBtn(); requestAnimationFrame(replayFrame); }
+}
+function startReplay(){
+  stopReplay();
+  const C = dReplayCtx, A = C.A, starts = new Set(); let o = 0; C.segs.forEach(sg => { starts.add(o); o += sg.length; });
+  dRoute.forEach(l => l.setStyle && l.setStyle({ opacity:.22 }));
+  replay = { t:0, total:A.cumT[A.n - 1] || 1, playing:true, done:false, last:performance.now(), starts,
+    line:L.polyline([], { color:C.col, weight:6, interactive:false }).addTo(dMap),
+    dot:L.marker([A.pts[0][0], A.pts[0][1]], { icon:L.divIcon({ className:'', html:'<div class="replaydot"></div>', iconSize:[22, 22], iconAnchor:[11, 11] }), interactive:false, keyboard:false }).addTo(dMap) };
+  setReplayBtn(); requestAnimationFrame(replayFrame);
+}
+function replayFrame(now){
+  const R = replay; if (!R || !R.playing || !dReplayCtx) return;
+  const C = dReplayCtx, A = C.A;
+  R.t = Math.min(R.total, R.t + (now - R.last) / REPLAY_MS * R.total); R.last = now;
+  let lo = 0, hi = A.n - 1; while (hi - lo > 1){ const m = (lo + hi) >> 1; if (A.cumT[m] < R.t) lo = m; else hi = m; }
+  const span = A.cumT[hi] - A.cumT[lo], f = span > 0 ? clamp((R.t - A.cumT[lo]) / span, 0, 1) : 1;
+  const p0 = A.pts[lo], p1 = A.pts[hi], pos = [p0[0] + (p1[0] - p0[0]) * f, p0[1] + (p1[1] - p0[1]) * f];
+  const parts = []; let cur = [];
+  for (let i = 0; i <= lo; i++){ if (R.starts.has(i) && cur.length){ parts.push(cur); cur = []; } cur.push([A.pts[i][0], A.pts[i][1]]); }
+  if (!R.starts.has(hi)) cur.push(pos); parts.push(cur);
+  R.line.setLatLngs(parts); R.dot.setLatLng(pos);
+  const dist = A.cumD[lo] + (A.cumD[hi] - A.cumD[lo]) * f, lbl = $('#d-map .replaylbl');
+  if (lbl) lbl.textContent = `${fmtDur(R.t)}, ${distText(dist, C.type)}`;
+  let k = 0, a = 0, b = C.idx.length - 1; while (b - a > 1){ const m = (a + b) >> 1; if (C.idx[m] < lo) a = m; else b = m; } k = Math.abs(C.idx[a] - lo) <= Math.abs(C.idx[b] - lo) ? a : b;
+  dCharts.forEach(c => c && c.show(k));
+  if (R.t >= R.total){ R.playing = false; R.done = true; setReplayBtn(); setTimeout(() => { if (replay === R && R.done) stopReplay(true); }, 1500); return; }
+  requestAnimationFrame(replayFrame);
+}
+function setReplayBtn(){
+  const b = $('#d-map .replaybtn'); if (!b) return;
+  const R = replay;
+  b.innerHTML = R && R.playing ? `${I.pause}<span>Pause</span>` : `${I.play}<span>${R && !R.done ? 'Resume' : R && R.done ? 'Replay again' : 'Replay'}</span>`;
+  b.setAttribute('aria-label', R && R.playing ? 'Pause the replay' : 'Replay the route');
+}
+function stopReplay(keepLabel){
+  const R = replay; if (!R) return; replay = null;
+  if (dMap){ dMap.removeLayer(R.line); dMap.removeLayer(R.dot); }
+  dRoute.forEach(l => l.setStyle && l.setStyle({ opacity:l.options.className && l.options.className.includes('drawn') ? .55 : l.options.dashArray ? .9 : (l.options.weight === 9 ? .85 : 1) }));
+  dCharts.forEach(c => c && c.show(null));
+  setReplayBtn(); if (!keepLabel){ const lbl = $('#d-map .replaylbl'); if (lbl) lbl.textContent = ''; }
+}
+
 /* ---------- drawing in a missing route ---------- */
 // Each gap becomes a chain: the last GPS point before it, any points you've drawn, and the first GPS point after.
 // Drag a midpoint handle to add a point, drag a point to move it, tap a point to remove it. On save, drawn points
 // get times spread evenly by distance across the gap and heights blended between its ends, and the stats update.
 let gapEd = null;
 function startGapEdit(){
+  stopReplay();
   const a = S.acts[S.detail], trk = a && getTrack(a.id);
   if (!dMap || !trk){ toast('Open the map first: the route needs to be on this phone.'); return; }
   const gs = gapSetOf(trk), ds = drawnSetOf(trk), dem = trk.dem ? decFlat(trk.dem) : null;
@@ -2382,7 +2494,7 @@ function startGapEdit(){
   const segs = decodeTrack(trk).map(sg => { const out = sg.map((p, i) => ({ lat:p[0], lng:p[1], ele:p[2], t:p[3], dem:dem ? dem[o + i] : null, drawn:ds.has(gapKey(trk.t0, p[3])), gapEnd:gs.has(gapKey(trk.t0, p[3])) })); o += sg.length; return out; });
   gapEd = { id:a.id, trk, segs, layers:[], col:cssVar('--' + a.type) };
   dRoute.forEach(l => dMap.removeLayer(l));
-  const el = $('#d-map'); el.classList.add('editing');
+  const el = $('#d-map'); el.classList.add('editing'); el.querySelector('.mapov')?.setAttribute('hidden', '');
   const bar = document.createElement('div'); bar.className = 'gapbar';
   bar.innerHTML = `<p>Drag the dotted line to follow the way you went. Tap a point you added to remove it.</p>
     <div class="btnrow"><button class="btn" data-act="gap-clear">Clear</button><button class="btn" data-act="gap-cancel">Cancel</button><button class="btn primary" data-act="gap-save">Save</button></div>`;
@@ -2434,7 +2546,7 @@ function renderGapEdit(){
 function endGapEdit(){
   if (!gapEd) return;
   gapEd.layers.forEach(l => dMap && dMap.removeLayer(l)); gapEd = null;
-  const el = $('#d-map'); if (el){ el.classList.remove('editing'); el.querySelector('.gapbar')?.remove(); }
+  const el = $('#d-map'); if (el){ el.classList.remove('editing'); el.querySelector('.gapbar')?.remove(); el.querySelector('.mapov')?.removeAttribute('hidden'); }
 }
 function saveGapEdit(){
   const E = gapEd, a = S.acts[E.id]; if (!a) return endGapEdit();
@@ -2640,6 +2752,7 @@ document.addEventListener('click', e => {
     case 'confirm-delete': { const id = S.detail; closeSheetNow(); deleteAct(id); history.go(-2); setTimeout(() => { if (S.detail) closeDetailNow(); }, 300); toast('Activity deleted.'); break; }
     case 'gpx': exportGpx(); break;
     case 'gap-edit': startGapEdit(); break;
+    case 'replay': toggleReplay(); break;
     case 'gap-cancel': endGapEdit(); renderDetail(); break;
     case 'gap-save': saveGapEdit(); break;
     case 'gap-clear': if (gapEd){ gapEd.segs.forEach(sg => { for (let i = sg.length - 1; i >= 0; i--) if (sg[i].drawn) sg.splice(i, 1); }); renderGapEdit(); } break;
