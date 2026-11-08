@@ -1953,35 +1953,45 @@ function todaysSessions(){
 }
 
 /* goals and progress */
-function bestEfforts(){
-  const best = (type, D) => { let b = null; for (const a of liveActs()) if (a.type === type){ const s = a.stats?.best?.[D]; if (s && (!b || s < b.s)) b = { s, a }; } return b; };
-  return { swim:best('swim', 400), ride:best('ride', 10000), run:best('run', 5000) };
-}
-// Race-time estimates from your best test efforts (a standard endurance scaling: time grows a little faster than distance).
-function predictFromBests(B){
+// Race-time estimates from your training: any swim of 300 m+, ride of 8 km+ or run of 3 km+ counts, plus the fastest
+// standard-distance efforts inside recorded routes. Time is scaled with a standard endurance rule (it grows a little
+// faster than distance), and the best estimate wins, so easy sessions don't drag it down.
+const RACE_DIST = { swim:1500, ride:40000, run:10000 }, MIN_DIST = { swim:300, ride:8000, run:3000 };
+function racePredictions(){
   const out = {};
-  if (B.swim) out.swim = Math.round(B.swim.s * Math.pow(1500 / 400, 1.06));
-  if (B.ride) out.ride = Math.round(B.ride.s * Math.pow(4, 1.06));
-  if (B.run) out.run = Math.round(B.run.s * Math.pow(2, 1.06));
+  for (const a of liveActs()){
+    const t = a.type; if (!RACE_DIST[t]) continue;
+    const st = a.stats || {}, cands = [];
+    if (st.dist >= MIN_DIST[t] && st.time > 0) cands.push([st.dist, st.moving || st.time]);
+    for (const [D, secs] of Object.entries(st.best || {})) if (+D >= MIN_DIST[t] && secs > 0) cands.push([+D, secs]);
+    for (const [d, secs] of cands){
+      const pred = Math.round(secs * Math.pow(RACE_DIST[t] / d, 1.06));
+      if (!out[t] || pred < out[t].pred) out[t] = { pred, d, secs, a };
+    }
+  }
   return out;
 }
+const predictFromBests = () => { const P = racePredictions(), o = {}; for (const t in P) o[t] = P[t].pred; return o; };
 const goalTotal = g => g && g.swim > 0 && g.ride > 0 && g.run > 0 ? g.swim + g.ride + g.run + (g.t > 0 ? g.t : 300) : 0;
 function progressCard(M){
-  const g = M.p.goal || {}, B = bestEfforts(), u = U();
-  if (!(g.swim || g.ride || g.run) && !(B.swim || B.ride || B.run)) return '';
-  const row = (sport, label, best, now_, goalS, fmt) => {
-    if (!best && !(goalS > 0)) return '';
-    const cmp = best && goalS > 0 ? (now_ <= goalS ? '<span class="pg ok">On track</span>' : `<span class="pg">${fmtDur(now_ - goalS)} to find</span>`) : '';
-    return `<div class="prog-row" style="--c:var(--${sport})"><span class="bar"></span><div class="tx"><b>${label}</b>
-      <small>${best ? `Best test: ${fmtDur(best.s)}${fmt ? `, ${fmt}` : ''}. Predicts ${fmtDur(now_)}.` : 'No test yet: it’ll show after your first test week.'}${goalS > 0 ? ` Goal ${fmtDur(goalS)}.` : ''}</small></div>${cmp}</div>`;
+  const g = M.p.goal || {}, P = racePredictions(), u = U();
+  if (!(g.swim || g.ride || g.run) && !(P.swim || P.ride || P.run)) return '';
+  const basis = (t, x) => {
+    const d = t === 'swim' ? `${Math.round(x.d).toLocaleString('en-GB')} m` : `${fmtDist(x.d)} ${u.dl}`;
+    const pace = t === 'ride' ? `${fmtSpeed(x.d / x.secs)} ${u.sp}` : `${fmtPace(x.secs / (x.d / paceU(t).d))} /${paceU(t).l}`;
+    return `From ${esc(x.a.name)}: ${d} in ${fmtDur(x.secs)} (${pace}).`;
   };
-  const P = predictFromBests(B);
-  const rideKmh = B.ride ? 10 / (B.ride.s / 3600) * (u.dl === 'km' ? 1 : 0.621371) : 0;
+  const row = (t, label) => {
+    const x = P[t], goalS = g[t];
+    if (!x && !(goalS > 0)) return '';
+    const cmp = x && goalS > 0 ? (x.pred <= goalS ? '<span class="pg ok">On track</span>' : `<span class="pg">${fmtDur(x.pred - goalS)} to find</span>`) : '';
+    const need = { swim:'a swim of 300 m or more', ride:'a ride of 8 km or more', run:'a run of 3 km or more' }[t];
+    return `<div class="prog-row" style="--c:var(--${t})"><span class="bar"></span><div class="tx"><b>${label}${x ? `: about ${fmtDur(x.pred)}` : ''}</b>
+      <small>${x ? basis(t, x) : `Record or log ${need}, with its distance, to see an estimate.`}${goalS > 0 ? ` Goal ${fmtDur(goalS)}.` : ''}</small></div>${cmp}</div>`;
+  };
   return `<div class="card"><div class="chead"><h3>Progress towards race day</h3>${goalTotal(g) ? `<span class="note" style="margin:0">Goal ${fmtDur(goalTotal(g))}</span>` : ''}</div>
-    ${row('swim', 'Swim 1500 m', B.swim, P.swim, g.swim, B.swim ? `${fmtPace(B.swim.s / 4)} /100 m` : '')}
-    ${row('ride', 'Bike 40 km', B.ride, P.ride, g.ride, B.ride ? `${rideKmh.toFixed(1)} ${u.sp}` : '')}
-    ${row('run', 'Run 10 km', B.run, P.run, g.run, B.run ? `${fmtPace(B.run.s / 5 * (u.dl === 'km' ? 1 : 1.609344))} /${u.dl}` : '')}
-    ${!(g.swim || g.ride || g.run) ? '<p class="note">Add goal times in plan settings to see how you’re tracking.</p>' : ''}</div>`;
+    ${row('swim', 'Swim 1500 m')}${row('ride', 'Bike 40 km')}${row('run', 'Run 10 km')}
+    <p class="note">Estimates come from your fastest session in each sport, scaled to race distance.${!(g.swim || g.ride || g.run) ? ' Add goal times in plan settings to see how you’re tracking.' : ''}</p></div>`;
 }
 
 /* plan tab */
@@ -2110,7 +2120,7 @@ function planForm(p, setup){
       <div><label class="f" for="g-ride">Bike 40 km</label><input class="t" id="g-ride" inputmode="decimal" placeholder="h:mm:ss" value="${dur(g.ride)}"></div></div>
     <div class="frow"><div><label class="f" for="g-run">Run 10 km</label><input class="t" id="g-run" inputmode="decimal" placeholder="mm:ss" value="${dur(g.run)}"></div>
       <div><label class="f" for="g-t">Transitions</label><input class="t" id="g-t" inputmode="decimal" placeholder="5:00" value="${dur(g.t)}"></div></div>
-    <button class="btn block" style="margin-top:10px" data-act="goal-suggest">Suggest from my test results</button>
+    <button class="btn block" style="margin-top:10px" data-act="goal-suggest">Suggest from my training</button>
     <p class="msg" id="p-msg"></p>`;
 }
 function readPlanForm(){
@@ -2451,8 +2461,8 @@ document.addEventListener('click', e => {
       toast(d.act === 'plan-start' ? 'Plan ready. Good luck!' : 'Plan updated.'); break;
     }
     case 'goal-suggest': {
-      const P = predictFromBests(bestEfforts()), set = (id, v) => { if (v) $(id).value = fmtDur(v); };
-      if (!P.swim && !P.ride && !P.run){ const el = $('#p-msg'); if (el) el.textContent = 'No test results yet. Log a 400 m swim, 10 km ride or 5 km run first.'; break; }
+      const P = predictFromBests(), set = (id, v) => { if (v) $(id).value = fmtDur(v); };
+      if (!P.swim && !P.ride && !P.run){ const el = $('#p-msg'); if (el) el.textContent = 'Nothing to go on yet. Record or log a swim, ride or run with its distance first.'; break; }
       set('#g-swim', P.swim); set('#g-ride', P.ride); set('#g-run', P.run); if (!$('#g-t').value) $('#g-t').value = '5:00';
       const el = $('#p-msg'); if (el) el.textContent = ''; toast('Filled in from your best tests. Adjust them to suit you.'); break;
     }
