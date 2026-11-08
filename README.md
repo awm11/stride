@@ -19,12 +19,15 @@ The first time you press Start, allow location access.
 
 ## Training plan
 
-The **Plan** tab holds a 31-week plan for a first Olympic-distance triathlon (1500 m swim, 40 km bike, 10 km run) on about 3 hours a week rising to 5. Enter your race date to start it.
+The **Plan** tab builds a 31-week plan for an Olympic-distance triathlon (1500 m swim, 40 km bike, 10 km run) around you. Enter your race date to start.
 
-- **Phases:** Foundation (weeks 1–8), Base (9–18), Build (19–26), Peak (27–29) and Taper (30–31), with a lighter recovery week every fourth week and test weeks at 1, 8, 18 and 26 (400 m swim, 10 km bike, 5 km run).
-- **Sessions:** each has a warm-up, main set and cool-down. They tick themselves off when you record or log an activity of the same sport on the same day, and you can also mark them done, skip them or move them to another day that week.
-- **Logging by hand:** use the **+** on the Activities tab for pool swims, turbo rides and treadmill runs. A logged 400 m swim or 5 km run counts as a personal best.
-- **On a computer:** open the same address and sign in with Google; the plan and your activities sync, and the layout widens to show the whole week.
+- **Your starting point:** choose a level for each sport (for example "Can run 5 km") and the time you have each week (3–5, 5–7 or 7–9 hours). Sessions get longer and the advice changes to match.
+- **Your days:** pick the day for each weekly session (two swims, two rides, two runs), or switch one off. The brick run follows the long ride, and tests land on your chosen days.
+- **Day to day:** open any session to move it to another day or date, change its length, skip it, mark it done or remove it. Tap **+** on any day to add your own session, once or every week. Or choose **Blank: build my own** to plan everything yourself.
+- **Goal times:** set targets for the swim, bike, run and transitions. Race-pace sessions then show your target pace, and a progress card compares your best tests (400 m swim, 10 km ride, 5 km run) with your goals. **Suggest from my test results** fills in goals from your tests.
+- **Phases:** Foundation (weeks 1–8), Base (9–18), Build (19–26), Peak (27–29) and Taper (30–31), with a lighter week every fourth week and test weeks at 1, 8, 18 and 26.
+- Sessions tick themselves off when you record or log the same sport that day. Logging by hand (**+** on Activities) covers pool swims, turbo rides and treadmill runs.
+- **On a computer:** open the same address and sign in with Google; everything syncs, and the week shows in seven columns.
 
 ## The Android app
 
