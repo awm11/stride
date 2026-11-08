@@ -265,7 +265,19 @@ textarea.t{min-height:90px;resize:vertical}
 .count{text-align:right;line-height:1;flex:none}
 .count b{font-family:var(--cond);font-size:46px;font-weight:700;display:block}
 .count span{font-size:13px;color:var(--muted)}
-.phases{position:relative;display:flex;gap:3px;margin-top:16px}
+.phases{position:relative;display:flex;gap:3px;margin-top:6px;padding:10px 0;cursor:pointer}
+.phases:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.phrow{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;position:relative}
+.phrow.cur{box-shadow:inset 0 0 0 2px var(--ink2);border-color:transparent}
+.phrow .phr-top{display:flex;align-items:baseline;gap:10px}
+.phrow .phr-top b{font-size:18px}
+.phrow .phr-top span{font-family:var(--cond);font-weight:600;color:var(--ink2);font-size:16px}
+.phrow .phr-top em{margin-left:auto;font-style:normal;font-size:13px;font-weight:700;color:var(--accent)}
+.phrow .phr-dates{color:var(--ink2);font-size:15px;margin-top:2px}
+.phrow p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.phrow small{display:block;margin-top:6px;color:var(--muted);font-size:13px}
+.phrow .phr-bar{display:block;height:6px;border-radius:3px;background:var(--line);margin-top:10px;overflow:hidden}
+.phrow .phr-bar i{display:block;height:100%;background:var(--ink2)}
 .phases .ph{min-width:0}
 .phases .ph i{display:block;height:8px;border-radius:4px;background:var(--line)}
 .phases .ph.cur i{background:var(--ink2)}
@@ -297,6 +309,12 @@ textarea.t{min-height:90px;resize:vertical}
 .sess b{display:block;font-size:16px}
 .sess small{display:block;color:var(--muted);font-size:14px}
 .sess.opt{border-style:dashed}
+.sess{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+.sess.dragging{opacity:.35}
+.pday.drop{outline:2px dashed var(--accent);outline-offset:4px;border-radius:12px}
+.sessghost{position:fixed;z-index:3000;pointer-events:none;margin:0;box-shadow:0 14px 34px rgba(0,0,0,.28);transform:rotate(-2deg);opacity:.96}
+body.pdragging, body.pdragging *{cursor:grabbing !important}
+.dragnote{text-align:center;color:var(--muted);font-size:14px;margin:12px 0 0}
 .sess.s-done{background:var(--surface2)}
 .sess.s-done b,.sess.s-skipped b,.sess.s-before b{color:var(--ink2)}
 .sess .ok{width:30px;height:30px;border-radius:50%;background:var(--c);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
@@ -362,7 +380,7 @@ ol.steps li{margin:7px 0;line-height:1.45}
   .scroll-pad{max-width:760px;padding:30px 32px 48px}
   .scroll-pad.wide{max-width:1200px}
   .vtitle{font-size:40px}
-  #v-record{display:grid;grid-template-columns:minmax(0,1fr) 440px;grid-template-rows:auto 1fr}
+  #v-record{display:grid;grid-template-columns:minmax(0,1fr) 520px;grid-template-rows:auto 1fr}
   #v-record .map-wrap{grid-row:1 / span 2}
   #v-record .live{margin:0;border-radius:0;box-shadow:none;border-left:1px solid var(--line);padding:28px 24px 8px;overflow-y:auto}
   #v-record .controls{border-left:1px solid var(--line);align-items:flex-start;padding-top:24px}
@@ -375,6 +393,16 @@ ol.steps li{margin:7px 0;line-height:1.45}
   .sgrid{grid-template-columns:repeat(6,1fr)}
   .plan-top{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
   .plan-top .card{margin:0}
+}
+/* larger text and controls on computers; maps stay at 1:1 so dragging and replay line up with the pointer */
+@media (min-width:900px){
+  .scroll-pad, .tabs, #detail .ptop, #detail .dhead, #detail .dbody, #v-record .live, #v-record .controls, .sheet, #gate .inner, #appsign .inner, #toast{zoom:1.2}
+  .tabs{width:96px}
+  .sheet{max-height:calc(88vh / 1.2)}
+}
+@media (min-width:1800px){
+  .scroll-pad, .tabs, #detail .ptop, #detail .dhead, #detail .dbody, #v-record .live, #v-record .controls, .sheet, #gate .inner, #appsign .inner, #toast{zoom:1.32}
+  .sheet{max-height:calc(88vh / 1.32)}
 }
 @media (min-width:1180px){
   .pdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin-top:6px}
@@ -1103,10 +1131,15 @@ function oklchToHex(L, C, h){
   const rgb = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * q, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * q, -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * q];
   return '#' + rgb.map(v => { v = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(Math.max(0, v), 1 / 2.4) - 0.055; return Math.round(clamp(v, 0, 1) * 255).toString(16).padStart(2, '0'); }).join('');
 }
+// A slight hue shift helps too: the light end leans warm (towards yellow), the dark end cool (towards violet),
+// by up to about 20° each way from the sport's own hue.
 function progressRamp(col){
   const [L, C, h] = hexToOklch(col), dark = document.documentElement.dataset.theme === 'dark';
   const L0 = dark ? 0.45 : 0.82, L1 = dark ? 0.88 : 0.36, C0 = C * 0.5, C1 = Math.min(C, 0.2);
-  return f => oklchToHex(L0 + (L1 - L0) * f, C0 + (C1 - C0) * f, h);
+  const toward = (target, max) => { const d = Math.atan2(Math.sin(target - h), Math.cos(target - h)); return h + clamp(d, -max, max); };
+  const hLight = toward(95 * Math.PI / 180, 20 * Math.PI / 180), hDark = toward(285 * Math.PI / 180, 20 * Math.PI / 180);
+  const h0 = dark ? hDark : hLight, h1 = dark ? hLight : hDark;
+  return f => oklchToHex(L0 + (L1 - L0) * f, C0 + (C1 - C0) * f, h0 + (h1 - h0) * f);
 }
 function drawProgressRoute(map, segs, gs, t0, col, ds = new Set()){
   const ramp = progressRamp(col), dark = document.documentElement.dataset.theme === 'dark', out = [], links = [];
@@ -2199,7 +2232,7 @@ function renderPlan(){
   const g = M.p.goal || {}, gt = goalTotal(g);
   const dayRows = [0,1,2,3,4,5,6].map(d => {
     const date = addDaysD(ws, d), dk = dkey(date), ds = wkS.filter(s => dkey(sessDate(M, s)) === dk), isToday = dk === dkey(today);
-    return `<div class="pday${isToday ? ' today' : ''}"><div class="pdh"><b>${DFW.format(date)}</b>${isToday ? '<span>Today</span>' : ''}<button class="addsess" data-act="add-sess" data-date="${dk}" aria-label="Add a session on ${DFW.format(date)}">${I.plus}</button></div>
+    return `<div class="pday${isToday ? ' today' : ''}" data-date="${dk}"><div class="pdh"><b>${DFW.format(date)}</b>${isToday ? '<span>Today</span>' : ''}<button class="addsess" data-act="add-sess" data-date="${dk}" aria-label="Add a session on ${DFW.format(date)}">${I.plus}</button></div>
       ${ds.length ? ds.map(s => sessRow(s, st.get(s.id))).join('') : '<p class="rest">Rest</p>'}</div>`;
   }).join('');
   v.innerHTML = `<div class="scroll-pad wide"><div class="vhead"><h1 class="vtitle">Plan</h1><button class="iconbtn" data-act="plan-settings" aria-label="Plan settings">${I.edit}</button></div>
@@ -2207,7 +2240,7 @@ function renderPlan(){
       <div class="rc-top"><div><h2>${esc(M.p.name || PLAN_RACES.olympic.name)}</h2><p>${DFL.format(fromDkey(M.p.race))}</p></div>
         <div class="count">${days > 0 ? `<b class="num">${days}</b><span>${days === 1 ? 'day to go' : 'days to go'}</span>` : days === 0 ? '<b class="num">Today</b><span>race day</span>' : '<b class="num">Done</b><span>race complete</span>'}</div></div>
       ${gt ? `<p class="goal-line">Goal <b class="num">${fmtDur(gt)}</b>: swim ${fmtDur(g.swim)}, bike ${fmtDur(g.ride)}, run ${fmtDur(g.run)}, transitions ${fmtDur(g.t > 0 ? g.t : 300)}</p>` : ''}
-      ${M.p.template === 'blank' ? '' : `<div class="phases" aria-hidden="true">${strip}${days >= 0 && !before ? `<em style="left:${markerPct}%"></em>` : ''}</div><p class="ph-now">${phLine}</p>`}
+      ${M.p.template === 'blank' ? '' : `<div class="phases" role="button" tabindex="0" data-act="phases" aria-label="See the training phases with their weeks and dates">${strip}${days >= 0 && !before ? `<em style="left:${markerPct}%"></em>` : ''}</div><p class="ph-now">${phLine} <button class="linkbtn" data-act="phases">All phases</button></p>`}
     </div>${progressCard(M)}</div>
     ${before ? `<p class="banner">Week 1 starts on ${DFL.format(M.start)}. Until then, keep moving with two or three easy sessions a week.</p>` : ''}
     <div class="weeknav"><button class="iconbtn" data-pweek="${w - 1}" ${w <= 1 ? 'disabled' : ''} aria-label="Previous week">${I.back}</button>
@@ -2220,6 +2253,7 @@ function renderPlan(){
         ${sums.map(x => `<div class="wk-bar"><span>${SPORT_WORD[x.t]}</span><div class="track"><i style="width:${x.plan ? clamp(x.done / x.plan * 100, 0, 100) : 0}%;background:var(--${x.t})"></i></div><small>${x.done}/${x.plan} min</small></div>`).join('')}</div>
     </div>
     <div class="pdays">${dayRows}</div>
+    <p class="dragnote">Drag a session to another day to move it${matchMedia('(pointer:coarse)').matches ? ' (press and hold it first)' : ''}.</p>
   </div>`;
 }
 const STATUS_TXT = { done:'Done', skipped:'Skipped', missed:'Missed', dropped:'Not done', today:'Today', upcoming:'', before:'' };
@@ -2299,6 +2333,26 @@ function readPlanForm(){
   return { race:$('#p-date').value, name:$('#p-name').value.trim(), template:val('template') === 1 ? 'blank' : 'olympic',
     lv:{ swim:val('lv.swim'), ride:val('lv.ride'), run:val('lv.run') }, hrs:val('hrs'), slots,
     goal:{ total:t('#g-total'), swim:t('#g-swim'), ride:t('#g-ride'), run:t('#g-run'), t:t('#g-t'), wetsuit:($('[data-act="p-wetsuit"]') || { getAttribute:() => 'true' }).getAttribute('aria-checked') === 'true' } };
+}
+const WEEK_MARK = { test:'test week', recovery:'lighter week', holiday:'lighter week', rehearsal:'race rehearsal', race:'race week' };
+function openPhases(){
+  const M = planModel(); if (!M) return;
+  const today = fromDkey(dkey(now())), curW = weekOfDate(M, today);
+  const rows = PHASES.map(p => {
+    const a = M.weekStart(p.from), b = addDaysD(M.weekStart(p.to), 6), n = p.to - p.from + 1;
+    const cur = curW >= p.from && curW <= p.to, done = curW > p.to;
+    const marks = [];
+    for (let w = p.from; w <= p.to; w++){ const k = PLAN_TABLE[w - 1][0]; if (WEEK_MARK[k]) marks.push(`week ${w} ${WEEK_MARK[k]}`); }
+    const pct = cur ? clamp((today - a) / (b - a + 864e5) * 100, 0, 100) : done ? 100 : 0;
+    const yr = d => d.getFullYear() !== today.getFullYear() ? ' ' + d.getFullYear() : '';
+    return `<button class="phrow${cur ? ' cur' : ''}" data-phweek="${cur ? curW : p.from}">
+      <span class="phr-top"><b>${p.name}</b><span>Weeks ${p.from}–${p.to}</span>${cur ? '<em>Now</em>' : done ? '<em style="color:var(--muted)">Done</em>' : ''}</span>
+      <span class="phr-dates" style="display:block">${DFW.format(a)} – ${DFW.format(b)}${yr(b)}, ${n} weeks</span>
+      <p>${esc(p.about)}</p>${marks.length ? `<small>${marks.join(', ').replace(/^w/, 'W')}.</small>` : ''}
+      <span class="phr-bar"><i style="width:${pct}%"></i></span></button>`;
+  }).join('');
+  openSheet('phases', `<h2>Training phases</h2><p class="note" style="margin-top:-4px">Race day: ${DFL.format(fromDkey(M.p.race))}. Tap a phase to see its weeks.</p>${rows}
+    <div class="stack"><button class="btn block" data-act="close-sheet">Close</button></div>`);
 }
 function movePlanned(id, date){
   const M = planModel(), s = M?.byId.get(id); if (!s) return;
@@ -2706,6 +2760,68 @@ async function restoreBackup(file){
 let toastT;
 function toast(msg, ms = 2600){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms); }
 
+/* ---------- drag plan sessions between days ---------- */
+// Mouse: drag straight away. Touch: press and hold, then drag (a quick swipe still scrolls the page).
+let pdrag = null, pdragEat = false;
+function pdragStart(){
+  const d = pdrag, r = d.card.getBoundingClientRect(), z = parseFloat(getComputedStyle(d.card.closest('.scroll-pad')).zoom) || 1;
+  d.on = true; d.z = z; d.ox = d.lx - r.left; d.oy = d.ly - r.top;
+  const g = d.ghost = d.card.cloneNode(true); g.classList.add('sessghost'); g.removeAttribute('data-sess');
+  g.style.zoom = z; g.style.width = r.width / z + 'px';
+  document.body.appendChild(g); d.card.classList.add('dragging'); document.body.classList.add('pdragging');
+  if (navigator.vibrate && d.touch) try { navigator.vibrate(15); } catch {}
+  pdragMove(d.lx, d.ly); d.raf = requestAnimationFrame(pdragScroll);
+}
+function pdragMove(x, y){
+  const d = pdrag; d.lx = x; d.ly = y;
+  d.ghost.style.left = (x - d.ox) / d.z + 'px'; d.ghost.style.top = (y - d.oy) / d.z + 'px';
+  const el = document.elementFromPoint(x, y), day = el && el.closest('#v-plan .pday[data-date]');
+  if (day !== d.over){ d.over?.classList.remove('drop'); d.over = day && day.dataset.date !== d.from ? day : null; d.over?.classList.add('drop'); }
+}
+function pdragScroll(){
+  const d = pdrag; if (!d?.on) return;
+  const v = $('#v-plan'), r = v.getBoundingClientRect(), edge = 70;
+  const sp = d.ly < r.top + edge ? -(r.top + edge - d.ly) : d.ly > r.bottom - edge ? d.ly - (r.bottom - edge) : 0;
+  if (sp){ v.scrollTop += sp / 4; pdragMove(d.lx, d.ly); }
+  d.raf = requestAnimationFrame(pdragScroll);
+}
+function pdragStop(drop){
+  const d = pdrag; if (!d) return; pdrag = null; clearTimeout(d.timer);
+  if (!d.on) return;
+  cancelAnimationFrame(d.raf); pdragEat = true;
+  d.ghost.remove(); d.card.classList.remove('dragging'); d.over?.classList.remove('drop'); document.body.classList.remove('pdragging');
+  if (drop && d.over){
+    const date = d.over.dataset.date, M = planModel(), s = M?.byId.get(d.id); if (!s) return;
+    setPlan(p => { p.moves ||= {}; p.moves[d.id] = date; });
+    if (S.tab === 'plan') renderPlan();
+    toast(`Moved ${s.title.charAt(0).toLowerCase() + s.title.slice(1)} to ${DFW.format(fromDkey(date))}.`);
+  }
+}
+document.addEventListener('pointerdown', e => {
+  pdragEat = false;
+  const card = e.target.closest('#v-plan .sess'); if (!card || e.button > 0 || pdrag) return;
+  pdrag = { card, id:card.dataset.sess, from:card.closest('.pday')?.dataset.date, pid:e.pointerId, x:e.clientX, y:e.clientY, lx:e.clientX, ly:e.clientY, touch:e.pointerType !== 'mouse', on:false };
+  if (pdrag.touch) pdrag.timer = setTimeout(() => { if (pdrag && !pdrag.on) pdragStart(); }, 350);
+});
+document.addEventListener('pointermove', e => {
+  const d = pdrag; if (!d || e.pointerId !== d.pid) return;
+  if (!d.on){
+    d.lx = e.clientX; d.ly = e.clientY;
+    if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 8) return;
+    if (d.touch){ pdragStop(false); return; } // moved before the hold finished: let the page scroll
+    pdragStart(); return;
+  }
+  pdragMove(e.clientX, e.clientY);
+});
+document.addEventListener('pointerup', e => { if (pdrag && e.pointerId === pdrag.pid) pdragStop(true); });
+document.addEventListener('pointercancel', e => { if (pdrag && e.pointerId === pdrag.pid) pdragStop(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && pdrag?.on) pdragStop(false); });
+document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('.phases[data-act]')){ e.preventDefault(); openPhases(); } });
+document.addEventListener('touchmove', e => { if (pdrag?.on) e.preventDefault(); }, { passive:false });
+document.addEventListener('contextmenu', e => { if (pdrag || e.target.closest('#v-plan .sess')) e.preventDefault(); });
+// the click that ends a drag shouldn't also open the session
+document.addEventListener('click', e => { if (pdragEat){ pdragEat = false; e.stopPropagation(); e.preventDefault(); } }, true);
+
 /* ---------- events ---------- */
 document.addEventListener('click', e => {
   const b = e.target.closest('button,[data-act]'); if (!b) return;
@@ -2718,6 +2834,7 @@ document.addEventListener('click', e => {
   if (d.stype){ $$('#sheet [data-stype]').forEach(x => x.setAttribute('aria-checked', String(x === b))); return; }
   if (d.mtype){ $$('#sheet [data-mtype]').forEach(x => x.setAttribute('aria-checked', String(x === b))); manualUnits(); return; }
   if (d.sess){ openSession(d.sess); return; }
+  if (d.phweek){ planWeekShown = +d.phweek; closeLayer(); renderPlan(); $('#v-plan').scrollTop = 0; return; }
   if (d.pweek){ planWeekShown = +d.pweek; renderPlan(); $('#v-plan').scrollTop = 0; return; }
   if (d.movedate && b.closest('.moves')){ movePlanned(b.closest('.moves').dataset.id, d.movedate); return; }
   if (d.pval != null && b.closest('[data-pfield]')){ const g = b.closest('[data-pfield]'); g.querySelectorAll('[data-pval]').forEach(x => x.setAttribute('aria-checked', String(x === b))); if (g.dataset.pfield === 'template') syncPlanForm(); return; }
@@ -2814,6 +2931,7 @@ document.addEventListener('click', e => {
       note.textContent = splitNote(sp); break;
     }
     case 'plan-settings': openPlanSettings(); break;
+    case 'phases': openPhases(); break;
     case 'plan-stop':
       if (b.dataset.armed){ setSetting('plan', null); closeLayer(); toast('Plan stopped.'); }
       else { b.dataset.armed = '1'; b.textContent = 'Tap again to stop the plan'; b.classList.add('solid'); }
