@@ -42,6 +42,7 @@ Phones stop giving web pages GPS when the screen turns off, so for recording wit
 ## Recording tips
 
 - In the browser version, phones only give GPS while Stride is on screen, so keep it open (the screen stays on by default). The Android app records with the screen off. Any stretch without GPS is drawn dashed.
+- **Fixing a GPS gap:** on the activity page, tap **Draw the missing route**, then drag the dotted line to follow the way you went (each drag adds a point; tap a point to remove it) and **Save**. Distance, pace and splits update; drawn stretches show as a lighter line, and the added points get times spread evenly across the gap.
 - Tap the padlock to lock the buttons so a pocket tap can't pause you; press and hold to unlock.
 - If the app is closed mid-recording, reopening it carries on where it left off (the closed stretch is skipped).
 - Spoken updates give your time and pace at each kilometre or mile.

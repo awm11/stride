@@ -232,6 +232,17 @@ textarea.t{min-height:90px;resize:vertical}
 .me-dot{width:22px;height:22px;border-radius:50%;background:var(--accent);border:4px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.4)}
 .pin{width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .pin.s{background:var(--good)} .pin.e{background:var(--ink)}
+.dmap.editing{height:72vh}
+.gapbar{position:absolute;left:10px;right:10px;bottom:10px;z-index:900;background:var(--surface);border-radius:14px;padding:10px 12px;box-shadow:0 4px 18px rgba(0,0,0,.25)}
+.gapbar p{margin:0 0 4px;font-size:14px;color:var(--ink2)}
+.gapbar .btnrow{margin-top:4px}
+.gapbar .btn{min-height:46px;min-width:0;flex:1}
+.ghandle{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:grab}
+.ghandle::after{content:"";border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.ghandle.mid::after{width:14px;height:14px;background:#fff;border:3px solid var(--ink2)}
+.ghandle.pt::after{width:18px;height:18px;background:var(--accent);border:3px solid #fff}
+.gapnote p{margin:0 0 8px}
+.gapnote .btn{min-height:44px}
 .scrub{width:18px;height:18px;border-radius:50%;background:#fff;border:4px solid var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.4)}
 
 /* ---------- plan ---------- */
@@ -737,12 +748,12 @@ async function writeDoc(id){
 function fitForCloud(trk){
   let t = trk, guard = 0;
   while (JSON.stringify(t).length > 900000 && guard++ < 6){
-    const gs = gapSetOf(t), full = decodeTrack(t);
-    const keep = (s, i) => i % 2 === 0 || i === s.length - 1 || gs.has(gapKey(t.t0, s[i][3])) || (i + 1 < s.length && gs.has(gapKey(t.t0, s[i + 1][3])));
+    const gs = gapSetOf(t), ds = drawnSetOf(t), full = decodeTrack(t), key = p => gapKey(t.t0, p[3]);
+    const keep = (s, i) => i % 2 === 0 || i === s.length - 1 || gs.has(key(s[i])) || ds.has(key(s[i])) || (i + 1 < s.length && (gs.has(key(s[i + 1])) || ds.has(key(s[i + 1]))));
     const segs = full.map(s => s.filter((p, i) => keep(s, i)));
     const dem = t.dem ? decFlat(t.dem) : null; let thinDem = null;
     if (dem){ thinDem = []; let o = 0; full.forEach(s => { s.forEach((p, i) => { if (keep(s, i)) thinDem.push(dem[o + i]); }); o += s.length; }); }
-    t = { ...encodeTrack(segs, t.t0, t.dur), dem:thinDem ? encFlat(thinDem) : null, rev:t.rev, ...(t.gaps ? { gaps:t.gaps } : {}) };
+    t = { ...encodeTrack(segs, t.t0, t.dur), dem:thinDem ? encFlat(thinDem) : null, rev:t.rev, ...(t.gaps ? { gaps:t.gaps } : {}), ...(t.drawn ? { drawn:t.drawn } : {}) };
   }
   return t;
 }
@@ -952,7 +963,9 @@ function eleArrFor(a, trk){ return (a.eleSrc !== 'gps' && trk && trk.dem) ? decF
 function restat(a, trk){
   const segs = decodeTrack(trk);
   const A = analyze(segs, a.type, eleArrFor(a, trk), trk.dur);
-  A.stats.gapTime = gapSecondsOf(segs, gapSetOf(trk), trk.t0);
+  const ds = drawnSetOf(trk);
+  A.stats.gapTime = gapSecondsOf(segs, gapSetOf(trk), trk.t0, ds);
+  A.stats.drawnDist = drawnDistOf(segs, trk.t0, ds);
   a.stats = A.stats; a.pv = previewOf(segs);
   return A;
 }
@@ -1037,28 +1050,47 @@ const curSeg = () => rec.segs[rec.segs.length - 1];
 const GAP_S = 20;
 const gapKey = (t0, t) => Math.round((t - t0) / 100);          // same 0.1 s grid the track is stored on
 const gapSetOf = trk => new Set((trk && Array.isArray(trk.gaps)) ? trk.gaps : []);
-// Split segments into solid runs and dashed gap links.
-function routePieces(segs, gs, t0){
-  const solid = [], dashed = [];
+// Points you drew in by hand across a GPS gap (see the gap editor) are listed in trk.drawn, keyed like gaps.
+const drawnSetOf = trk => new Set((trk && Array.isArray(trk.drawn)) ? trk.drawn : []);
+// Split segments into solid runs, dashed gap links (straight lines across a gap) and drawn runs (your own line).
+function routePieces(segs, gs, t0, ds = new Set()){
+  const solid = [], dashed = [], drawn = [];
   for (const sg of segs){
-    let run = [];
+    let run = [], drun = [];
+    const flush = () => { if (run.length > 1) solid.push(run); run = []; }, dflush = () => { if (drun.length > 1) drawn.push(drun); drun = []; };
     sg.forEach((p, i) => {
-      if (i && gs.has(gapKey(t0, p[3]))){ if (run.length > 1) solid.push(run); dashed.push([[sg[i-1][0], sg[i-1][1]], [p[0], p[1]]]); run = []; }
-      run.push([p[0], p[1]]);
+      const ll = [p[0], p[1]];
+      if (!i){ run.push(ll); return; }
+      const prev = sg[i - 1], pk = gapKey(t0, prev[3]), k = gapKey(t0, p[3]);
+      if (ds.has(k) || ds.has(pk)){ flush(); if (!drun.length) drun.push([prev[0], prev[1]]); drun.push(ll); if (!ds.has(k)){ dflush(); run.push(ll); } return; }
+      dflush();
+      if (gs.has(k)){ flush(); dashed.push([[prev[0], prev[1]], ll]); run.push(ll); return; }
+      run.push(ll);
     });
-    if (run.length > 1) solid.push(run);
+    flush(); dflush();
   }
-  return { solid, dashed };
+  return { solid, dashed, drawn };
 }
-function drawRoute(map, segs, gs, t0, col){
-  const { solid, dashed } = routePieces(segs, gs, t0), out = [];
+function drawRoute(map, segs, gs, t0, col, ds){
+  const { solid, dashed, drawn } = routePieces(segs, gs, t0, ds), out = [];
   dashed.forEach(ll => { out.push(L.polyline(ll, { color:col, weight:4, opacity:.85, dashArray:'2 10', lineCap:'round', interactive:false }).addTo(map)); });
+  drawn.forEach(ll => { out.push(L.polyline(ll, { color:'#fff', weight:9, opacity:.7, interactive:false }).addTo(map)); out.push(L.polyline(ll, { color:col, weight:5, opacity:.5, interactive:false, className:'drawn-line' }).addTo(map)); });
   solid.forEach(ll => { out.push(L.polyline(ll, { color:'#fff', weight:9, opacity:.9, interactive:false }).addTo(map)); out.push(L.polyline(ll, { color:col, weight:5, interactive:false }).addTo(map)); });
   return out;
 }
-function gapSecondsOf(segs, gs, t0){
-  let g = 0; for (const sg of segs) for (let i = 1; i < sg.length; i++) if (gs.has(gapKey(t0, sg[i][3]))) g += (sg[i][3] - sg[i-1][3]) / 1000;
+// Time without GPS: from the last real fix before each gap to the first one after, skipping points you drew in.
+function gapSecondsOf(segs, gs, t0, ds = new Set()){
+  let g = 0;
+  for (const sg of segs) for (let i = 1; i < sg.length; i++) if (gs.has(gapKey(t0, sg[i][3]))){
+    let j = i - 1; while (j > 0 && ds.has(gapKey(t0, sg[j][3]))) j--;
+    g += (sg[i][3] - sg[j][3]) / 1000;
+  }
   return Math.round(g);
+}
+function drawnDistOf(segs, t0, ds){
+  let d = 0; if (!ds.size) return 0;
+  for (const sg of segs) for (let i = 1; i < sg.length; i++) if (ds.has(gapKey(t0, sg[i][3])) || ds.has(gapKey(t0, sg[i - 1][3]))) d += hav(sg[i - 1], sg[i]);
+  return Math.round(d);
 }
 function addPoint(f){
   if (f.acc > 50) return;                                 // too vague to use
@@ -1534,7 +1566,7 @@ function barChart(el, vals, labels, color, fmt){
 }
 
 /* ---------- activity detail ---------- */
-let dMap = null, dScrub = null, dCharts = [], dA = null;
+let dMap = null, dScrub = null, dCharts = [], dA = null, dRoute = [];
 function openDetail(id, push = true){
   S.detail = id;
   if (push) history.pushState({ layer:'detail' }, '');
@@ -1542,6 +1574,7 @@ function openDetail(id, push = true){
   renderDetail();
 }
 function closeDetailNow(){
+  endGapEdit();
   S.detail = null; $('#detail').hidden = true;
   if (dMap){ dMap.remove(); dMap = null; } dCharts = []; dA = null;
   render();
@@ -1577,7 +1610,10 @@ async function renderDetail(fromRemote){
         <div class="m"><b class="num">${fmtEle(st.gain)}</b><small>Climb ${u.el}</small></div>
         ${st.eleMax != null && !isSwim ? `<div class="m"><b class="num">${fmtEle(st.eleMax)}</b><small>Highest ${u.el}</small></div><div class="m"><b class="num">${fmtEle(st.eleMin)}</b><small>Lowest ${u.el}</small></div><div class="m"><b class="num">${fmtEle(st.loss)}</b><small>Descent ${u.el}</small></div>` : ''}
       </div>`}
-      ${(st.gapTime || 0) >= 60 ? `<p class="banner">GPS was missing for ${fmtGap(st.gapTime)} of this ${esc(T.name.toLowerCase())}, usually because the screen was off while recording in the browser. Those stretches are drawn dashed and measured as straight lines, so the real distance was probably longer.</p>` : ''}
+      ${(st.gapTime || 0) >= GAP_S && !a.manual ? `<div class="banner gapnote"><p>GPS was missing for ${fmtGap(st.gapTime)} of this ${esc(T.name.toLowerCase())}, usually because the screen was off while recording in the browser.
+        ${st.drawnDist > 0 ? ` You’ve drawn in ${distText(st.drawnDist, a.type)} of the route by hand (the lighter line).` : ''}
+        ${st.gapTime && (st.drawnDist || 0) === 0 ? ' Dotted stretches are measured as straight lines, so the real distance was probably longer.' : ''}</p>
+        <button class="btn" data-act="gap-edit">${I.edit}${st.drawnDist > 0 ? 'Edit the drawn route' : 'Draw the missing route'}</button></div>` : ''}
       <div id="d-trackparts"></div>
       ${bests.length ? `<div class="card"><h3>Fastest efforts</h3><table class="pbs">${bests.map(([D, label]) => `<tr><td><b>${label}</b></td><td class="v">${fmtDur(st.best[D])}<div class="d">${a.type === 'ride' ? fmtSpeed(D / st.best[D]) + ' ' + u.sp : fmtPace(st.best[D] / (D / pu.d)) + ' /' + pu.l}</div></td></tr>`).join('')}</table></div>` : ''}
       ${a.notes ? `<div class="card"><h3>Notes</h3><div class="notes">${esc(a.notes)}</div></div>` : ''}
@@ -1603,7 +1639,7 @@ async function renderDetail(fromRemote){
   dMap = makeMap($('#d-map'));
   if (dMap){
     const col = cssVar('--' + a.type), lines = [];
-    lines.push(...drawRoute(dMap, segs, gapSetOf(trk), trk.t0, col));
+    dRoute = drawRoute(dMap, segs, gapSetOf(trk), trk.t0, col, drawnSetOf(trk)); lines.push(...dRoute);
     const pin = c => L.divIcon({ className:'', html:`<div class="pin ${c}"></div>`, iconSize:[18,18], iconAnchor:[9,9] });
     L.marker([A.pts[0][0], A.pts[0][1]], { icon:pin('s'), interactive:false, keyboard:false }).addTo(dMap);
     L.marker([A.pts[A.n-1][0], A.pts[A.n-1][1]], { icon:pin('e'), interactive:false, keyboard:false }).addTo(dMap);
@@ -2333,6 +2369,98 @@ function stackChart(el, series, labels, fmt){
   svg.addEventListener('pointerleave', () => { tip.hidden = true; hl.setAttribute('x', -100); });
 }
 
+/* ---------- drawing in a missing route ---------- */
+// Each gap becomes a chain: the last GPS point before it, any points you've drawn, and the first GPS point after.
+// Drag a midpoint handle to add a point, drag a point to move it, tap a point to remove it. On save, drawn points
+// get times spread evenly by distance across the gap and heights blended between its ends, and the stats update.
+let gapEd = null;
+function startGapEdit(){
+  const a = S.acts[S.detail], trk = a && getTrack(a.id);
+  if (!dMap || !trk){ toast('Open the map first: the route needs to be on this phone.'); return; }
+  const gs = gapSetOf(trk), ds = drawnSetOf(trk), dem = trk.dem ? decFlat(trk.dem) : null;
+  let o = 0;
+  const segs = decodeTrack(trk).map(sg => { const out = sg.map((p, i) => ({ lat:p[0], lng:p[1], ele:p[2], t:p[3], dem:dem ? dem[o + i] : null, drawn:ds.has(gapKey(trk.t0, p[3])), gapEnd:gs.has(gapKey(trk.t0, p[3])) })); o += sg.length; return out; });
+  gapEd = { id:a.id, trk, segs, layers:[], col:cssVar('--' + a.type) };
+  dRoute.forEach(l => dMap.removeLayer(l));
+  const el = $('#d-map'); el.classList.add('editing');
+  const bar = document.createElement('div'); bar.className = 'gapbar';
+  bar.innerHTML = `<p>Drag the dotted line to follow the way you went. Tap a point you added to remove it.</p>
+    <div class="btnrow"><button class="btn" data-act="gap-clear">Clear</button><button class="btn" data-act="gap-cancel">Cancel</button><button class="btn primary" data-act="gap-save">Save</button></div>`;
+  el.appendChild(bar); L.DomEvent.disableClickPropagation(bar); L.DomEvent.disableScrollPropagation(bar);
+  $('#detail').scrollTop = 0;
+  setTimeout(() => {
+    if (!gapEd) return; dMap.invalidateSize();
+    const pts = gapChains().flat(); if (pts.length) dMap.fitBounds(L.latLngBounds(pts.map(p => [p.lat, p.lng])), { padding:[60, 60], maxZoom:17 });
+    renderGapEdit();
+  }, 30);
+}
+function gapChains(){
+  const out = [];
+  for (const sg of gapEd.segs) for (let i = 1; i < sg.length; i++) if (sg[i].gapEnd){ let j = i - 1; while (j > 0 && sg[j].drawn) j--; out.push(sg.slice(j, i + 1)); }
+  return out;
+}
+function renderGapEdit(){
+  const E = gapEd; if (!E) return;
+  E.layers.forEach(l => dMap.removeLayer(l)); E.layers = [];
+  // the GPS route stays solid; each chain is redrawn with handles
+  const plain = E.segs.map(sg => sg.map(p => [p.lat, p.lng, p.ele, p.t]));
+  const { solid } = routePieces(plain, new Set(E.segs.flat().filter(p => p.gapEnd).map(p => gapKey(E.trk.t0, p.t))), E.trk.t0, new Set());
+  solid.forEach(ll => { E.layers.push(L.polyline(ll, { color:'#fff', weight:9, opacity:.9, interactive:false }).addTo(dMap), L.polyline(ll, { color:E.col, weight:5, interactive:false }).addTo(dMap)); });
+  for (const chain of gapChains()){
+    const hasDrawn = chain.some(p => p.drawn);
+    const line = L.polyline(chain.map(p => [p.lat, p.lng]), hasDrawn ? { color:E.col, weight:5, opacity:.6 } : { color:E.col, weight:4, opacity:.9, dashArray:'2 10', lineCap:'round' }).addTo(dMap);
+    E.layers.push(line);
+    const redrawLine = () => line.setLatLngs(chain.map(p => [p.lat, p.lng]));
+    chain.forEach((p, k) => {
+      if (p.drawn){
+        const m = L.marker([p.lat, p.lng], { draggable:true, icon:L.divIcon({ className:'', html:'<div class="ghandle pt" aria-label="Drawn point"></div>', iconSize:[30, 30], iconAnchor:[15, 15] }) }).addTo(dMap);
+        m.on('drag', ev => { const ll = ev.target.getLatLng(); p.lat = ll.lat; p.lng = ll.lng; redrawLine(); });
+        m.on('dragend', renderGapEdit);
+        m.on('click', () => { for (const sg of E.segs){ const i = sg.indexOf(p); if (i >= 0) sg.splice(i, 1); } renderGapEdit(); });
+        E.layers.push(m);
+      }
+      if (k < chain.length - 1){
+        const q = chain[k + 1], mid = [(p.lat + q.lat) / 2, (p.lng + q.lng) / 2];
+        const g = L.marker(mid, { draggable:true, icon:L.divIcon({ className:'', html:'<div class="ghandle mid" aria-label="Drag to bend the line"></div>', iconSize:[30, 30], iconAnchor:[15, 15] }) }).addTo(dMap);
+        let np = null;
+        g.on('dragstart', () => { np = { lat:mid[0], lng:mid[1], ele:null, t:null, dem:null, drawn:true, gapEnd:false }; for (const sg of E.segs){ const i = sg.indexOf(q); if (i >= 0) sg.splice(i, 0, np); } chain.splice(k + 1, 0, np); });
+        g.on('drag', ev => { const ll = ev.target.getLatLng(); np.lat = ll.lat; np.lng = ll.lng; redrawLine(); });
+        g.on('dragend', renderGapEdit);
+        E.layers.push(g);
+      }
+    });
+  }
+}
+function endGapEdit(){
+  if (!gapEd) return;
+  gapEd.layers.forEach(l => dMap && dMap.removeLayer(l)); gapEd = null;
+  const el = $('#d-map'); if (el){ el.classList.remove('editing'); el.querySelector('.gapbar')?.remove(); }
+}
+function saveGapEdit(){
+  const E = gapEd, a = S.acts[E.id]; if (!a) return endGapEdit();
+  const before = a.stats.dist, t0 = E.trk.t0;
+  for (const chain of gapChains()){
+    const A0 = chain[0], B = chain[chain.length - 1]; if (chain.length < 3) continue;
+    const cum = [0]; for (let k = 1; k < chain.length; k++) cum.push(cum[k - 1] + hav([chain[k - 1].lat, chain[k - 1].lng], [chain[k].lat, chain[k].lng]));
+    const tot = cum[cum.length - 1] || 1, n = chain.length;
+    for (let k = 1; k < n - 1; k++){
+      const f = cum[k] / tot, p = chain[k];
+      let t = Math.round((A0.t + (B.t - A0.t) * f - t0) / 100) * 100 + t0;
+      t = Math.max(t, chain[k - 1].t + 100); t = Math.min(t, B.t - 100 * (n - 1 - k));
+      p.t = t;
+      p.ele = A0.ele != null && B.ele != null ? Math.round((A0.ele + (B.ele - A0.ele) * f) * 10) / 10 : (A0.ele ?? B.ele);
+      p.dem = A0.dem != null && B.dem != null ? Math.round((A0.dem + (B.dem - A0.dem) * f) * 10) / 10 : (A0.dem ?? B.dem);
+    }
+  }
+  const segs = E.segs.map(sg => sg.map(p => [p.lat, p.lng, p.ele, p.t]));
+  const all = E.segs.flat(), gaps = all.filter(p => p.gapEnd).map(p => gapKey(t0, p.t)), drawn = all.filter(p => p.drawn).map(p => gapKey(t0, p.t));
+  const trk2 = { ...encodeTrack(segs, t0, E.trk.dur), dem:E.trk.dem ? encFlat(all.map(p => p.dem ?? 0)) : null, rev:(E.trk.rev || 1) + 1, ...(gaps.length ? { gaps } : {}), ...(drawn.length ? { drawn } : {}) };
+  putTrack(a.id, trk2); a.trackRev = trk2.rev; restat(a, trk2); saveAct(a, true);
+  endGapEdit(); renderDetail(); render();
+  const d = a.stats.dist - before;
+  toast(Math.abs(d) < 5 ? 'Route saved.' : `Route saved: ${d > 0 ? 'added' : 'removed'} ${distText(Math.abs(d), a.type)}.`, 3500);
+}
+
 /* ---------- sheets ---------- */
 let sheetKind = null;
 function openSheet(kind, html){
@@ -2511,6 +2639,10 @@ document.addEventListener('click', e => {
     case 'delete': openDelete(); break;
     case 'confirm-delete': { const id = S.detail; closeSheetNow(); deleteAct(id); history.go(-2); setTimeout(() => { if (S.detail) closeDetailNow(); }, 300); toast('Activity deleted.'); break; }
     case 'gpx': exportGpx(); break;
+    case 'gap-edit': startGapEdit(); break;
+    case 'gap-cancel': endGapEdit(); renderDetail(); break;
+    case 'gap-save': saveGapEdit(); break;
+    case 'gap-clear': if (gapEd){ gapEd.segs.forEach(sg => { for (let i = sg.length - 1; i >= 0; i--) if (sg[i].drawn) sg.splice(i, 1); }); renderGapEdit(); } break;
     case 'terrain': toast('Getting terrain elevation…'); addTerrain(S.detail); break;
     case 'import-gpx': $('#file-gpx').click(); break;
     case 'backup': saveBackup(); break;
