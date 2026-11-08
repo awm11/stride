@@ -1,7 +1,7 @@
 // Offline support for Stride.
 // The page is fetched fresh when online (so updates arrive) and served from cache when offline.
 // Bump APP_CACHE on every release.
-const APP_CACHE = 'stride-app-v8';
+const APP_CACHE = 'stride-app-v9';
 const FONT_CACHE = 'stride-fonts-v1';
 const LIB_CACHE = 'stride-libs-v1';
 const TILE_CACHE = 'stride-tiles-v1';
