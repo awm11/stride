@@ -1963,8 +1963,8 @@ function todaysSessions(){
 //      cube root of power (air resistance), so bike time grows only slightly faster than distance. Moving time is
 //      used, and GPS rides get back about 2.5 min per 100 m climbed (capped), so hilly rides aren't penalised.
 // 2. Triathlon adjustments, from coaching guidance and wetsuit studies:
-//    - Swim: a wetsuit is about 4% faster for newer swimmers; pool times lose about 6% in open water (no walls,
-//      sighting, wobbly lines). Open-water GPS swims skip the pool adjustment.
+//    - Swim: pool pace becomes about 4% slower in open water with a wetsuit and about 8% without (no walls,
+//      sighting, wobbly lines; the wetsuit wins some back). Open-water GPS swims are used as they are.
 //    - Bike: Olympic-distance riders hold 85–95% of their one-hour power to save the run, roughly 2.5% slower.
 //    - Run: running off the bike is typically 4–8% slower for trained age-groupers; we start a first-timer at 10%,
 //      easing to 6% as you log brick runs (a run starting within 20 minutes of a ride ending).
@@ -1998,10 +1998,8 @@ function racePredictions(goal){
   for (const t in out){
     const x = out[t], parts = [];
     let f = 1;
-    if (t === 'swim'){
-      if (x.pool){ f += 0.06; parts.push('+6% pool to open water'); }
-      if (g.wetsuit !== false){ f -= 0.04; parts.push('−4% wetsuit'); }
-    }
+    if (t === 'swim' && x.pool){ const ws = g.wetsuit !== false; f += ws ? 0.04 : 0.08; parts.push(ws ? '+4% pool to open water in a wetsuit' : '+8% pool to open water without a wetsuit'); }
+    if (t === 'swim' && !x.pool) parts.push('no change, as it was an open-water swim');
     if (t === 'ride'){ f += 0.025; parts.push('+2.5% holding back for the run'); }
     if (t === 'run'){ const r = Math.max(0.06, 0.10 - bricks * 0.04 / 6); f += r; parts.push(`+${Math.round(r * 100)}% running off the bike${bricks ? ` (${bricks} brick run${bricks > 1 ? 's' : ''} logged)` : ''}`); }
     x.race = Math.round(x.fresh * f); x.adj = f - 1; x.why = parts.join(', ');
@@ -2009,6 +2007,37 @@ function racePredictions(goal){
   return out;
 }
 const predictFromBests = goal => { const P = racePredictions(goal), o = {}; for (const t in P) o[t] = P[t].race; return o; };
+// Turn a whole-race target into splits.
+// Transitions: about 3% of the target (practised age-groupers take ~2 min, first-timers often 5–6), unless you set them.
+// Without estimates for all three sports: typical age-group shares of racing time (swim 20%, bike 47.5%, run 32.5%,
+// from Olympic-distance championship results). With estimates: start from your race estimates and take the time you
+// need to find mostly from the bike and run (weighted 1 : 1 against 0.5 for the swim), since those legs respond to
+// training most for newer triathletes; any time to spare is shared out in proportion.
+const TYPICAL_SHARE = { swim:0.20, ride:0.475, run:0.325 };
+function suggestSplits(total, trans, P){
+  const t = trans > 0 ? trans : clamp(Math.round(total * 0.03 / 30) * 30, 180, 480), R = total - t;
+  let out, basis;
+  if (P && P.swim && P.ride && P.run){
+    const est = { swim:P.swim.race, ride:P.ride.race, run:P.run.race }, sum = est.swim + est.ride + est.run, gap = sum - R;
+    const w = gap > 0 ? { swim:0.5, ride:1, run:1 } : { swim:1, ride:1, run:1 };
+    const wsum = Object.keys(est).reduce((a, k) => a + est[k] * w[k], 0);
+    out = {}; for (const k in est) out[k] = est[k] - gap * est[k] * w[k] / wsum;
+    basis = 'yours';
+  } else {
+    out = {}; for (const k in TYPICAL_SHARE) out[k] = R * TYPICAL_SHARE[k];
+    basis = 'typical';
+  }
+  out.swim = Math.round(out.swim / 5) * 5; out.ride = Math.round(out.ride / 30) * 30; out.run = R - out.swim - out.ride;   // run takes up the rounding
+  return { ...out, t, basis, est:P };
+}
+function splitNote(sp){
+  const u = U(), pace = { swim:`${fmtPace(sp.swim / 15)} /100 m`, ride:`${(40 / (sp.ride / 3600) * (u.dl === 'km' ? 1 : 0.621371)).toFixed(1)} ${u.sp}`, run:`${fmtPace(sp.run / 10 * (u.dl === 'km' ? 1 : 1.609344))} /${u.dl}` };
+  const ask = k => { const e = sp.est && sp.est[k]; if (!e) return ''; const d = (e.race - sp[k]) / e.race; return Math.abs(d) < 0.01 ? ', about where you are now' : d > 0 ? `, ${Math.round(d * 100)}% faster than now` : `, ${Math.round(-d * 100)}% in hand`; };
+  const lines = [['swim', 'Swim'], ['ride', 'Bike'], ['run', 'Run']].map(([k, n]) => `${n} ${fmtDur(sp[k])} (${pace[k]}${ask(k)})`);
+  const most = sp.est && sp.est.swim ? Math.max(...['swim', 'ride', 'run'].map(k => (sp.est[k].race - sp[k]) / sp.est[k].race)) : 0;
+  return (sp.basis === 'yours' ? 'Based on your current race estimates, with most of the time to find coming from the bike and run. ' : 'Based on typical age-group splits; once you’ve logged a swim, ride and run it’ll use your own. ')
+    + lines.join('; ') + `; transitions ${fmtDur(sp.t)}.` + (most > 0.15 ? ' That’s a big step from where you are now: worth checking after your next test week.' : '');
+}
 const goalTotal = g => g && g.swim > 0 && g.ride > 0 && g.run > 0 ? g.swim + g.ride + g.run + (g.t > 0 ? g.t : 300) : 0;
 function progressCard(M){
   const g = M.p.goal || {}, P = racePredictions(g), u = U();
@@ -2081,7 +2110,7 @@ function renderPlan(){
     <div class="plan-top"><div class="card racecard">
       <div class="rc-top"><div><h2>${esc(M.p.name || PLAN_RACES.olympic.name)}</h2><p>${DFL.format(fromDkey(M.p.race))}</p></div>
         <div class="count">${days > 0 ? `<b class="num">${days}</b><span>${days === 1 ? 'day to go' : 'days to go'}</span>` : days === 0 ? '<b class="num">Today</b><span>race day</span>' : '<b class="num">Done</b><span>race complete</span>'}</div></div>
-      ${gt ? `<p class="goal-line">Goal <b class="num">${fmtDur(gt)}</b>: swim ${fmtDur(g.swim)}, bike ${fmtDur(g.ride)}, run ${fmtDur(g.run)}</p>` : ''}
+      ${gt ? `<p class="goal-line">Goal <b class="num">${fmtDur(gt)}</b>: swim ${fmtDur(g.swim)}, bike ${fmtDur(g.ride)}, run ${fmtDur(g.run)}, transitions ${fmtDur(g.t > 0 ? g.t : 300)}</p>` : ''}
       ${M.p.template === 'blank' ? '' : `<div class="phases" aria-hidden="true">${strip}${days >= 0 && !before ? `<em style="left:${markerPct}%"></em>` : ''}</div><p class="ph-now">${phLine}</p>`}
     </div>${progressCard(M)}</div>
     ${before ? `<p class="banner">Week 1 starts on ${DFL.format(M.start)}. Until then, keep moving with two or three easy sessions a week.</p>` : ''}
@@ -2155,12 +2184,15 @@ function planForm(p, setup){
     <div class="slots">${SLOT_DEFS.map(slotRow).join('')}</div>
     </div>
     <h3 class="sheet-sub">Goal times (optional)</h3>
+    <div class="frow"><div><label class="f" for="g-total">Target finish time</label><input class="t" id="g-total" inputmode="decimal" placeholder="h:mm:ss" value="${dur(g.total)}"></div>
+      <div style="display:flex;align-items:flex-end"><button class="btn block" data-act="goal-split" style="min-height:52px">Suggest splits</button></div></div>
+    <p class="note" id="g-note" style="margin:6px 0 0">Enter a whole-race target and tap Suggest splits, or set each leg yourself below.</p>
     <div class="frow"><div><label class="f" for="g-swim">Swim 1500 m</label><input class="t" id="g-swim" inputmode="decimal" placeholder="mm:ss" value="${dur(g.swim)}"></div>
       <div><label class="f" for="g-ride">Bike 40 km</label><input class="t" id="g-ride" inputmode="decimal" placeholder="h:mm:ss" value="${dur(g.ride)}"></div></div>
     <div class="frow"><div><label class="f" for="g-run">Run 10 km</label><input class="t" id="g-run" inputmode="decimal" placeholder="mm:ss" value="${dur(g.run)}"></div>
       <div><label class="f" for="g-t">Transitions</label><input class="t" id="g-t" inputmode="decimal" placeholder="5:00" value="${dur(g.t)}"></div></div>
     <div class="row"><span class="lbl">Wetsuit for the swim<span class="sub">Usual in UK races unless the water is warm</span></span><button class="switch" role="switch" data-act="p-wetsuit" aria-checked="${g.wetsuit !== false}" aria-label="Wetsuit for the swim"></button></div>
-    <button class="btn block" style="margin-top:10px" data-act="goal-suggest">Suggest from my training</button>
+    <button class="btn block" style="margin-top:10px" data-act="goal-suggest">Use my current estimates</button>
     <p class="msg" id="p-msg"></p>`;
 }
 function readPlanForm(){
@@ -2170,7 +2202,7 @@ function readPlanForm(){
   // goal fields are typed as mm:ss or h:mm:ss; a bare number means minutes
   return { race:$('#p-date').value, name:$('#p-name').value.trim(), template:val('template') === 1 ? 'blank' : 'olympic',
     lv:{ swim:val('lv.swim'), ride:val('lv.ride'), run:val('lv.run') }, hrs:val('hrs'), slots,
-    goal:{ swim:t('#g-swim'), ride:t('#g-ride'), run:t('#g-run'), t:t('#g-t'), wetsuit:($('[data-act="p-wetsuit"]') || { getAttribute:() => 'true' }).getAttribute('aria-checked') === 'true' } };
+    goal:{ total:t('#g-total'), swim:t('#g-swim'), ride:t('#g-ride'), run:t('#g-run'), t:t('#g-t'), wetsuit:($('[data-act="p-wetsuit"]') || { getAttribute:() => 'true' }).getAttribute('aria-checked') === 'true' } };
 }
 function movePlanned(id, date){
   const M = planModel(), s = M?.byId.get(id); if (!s) return;
@@ -2494,7 +2526,7 @@ document.addEventListener('click', e => {
       const f = readPlanForm(), m = t => { const el = $('#p-msg'); if (el) el.textContent = t; toast(t); };
       if (!f.race){ m('Choose your race date.'); break; }
       if (fromDkey(f.race) < fromDkey(dkey(now()))){ m('Choose a race date in the future.'); break; }
-      if (['swim', 'ride', 'run', 't'].some(k => Number.isNaN(f.goal[k]))){ m('Goal times should look like 32:00 or 1:25:00.'); break; }
+      if (['total', 'swim', 'ride', 'run', 't'].some(k => Number.isNaN(f.goal[k]))){ m('Goal times should look like 32:00 or 1:25:00.'); break; }
       const old = S.settings.plan, fresh = d.act === 'plan-start' || !old || old.race !== f.race;
       setPlan(p => { Object.assign(p, f, { dist:'olympic' }); if (fresh){ p.joined = dkey(now()); p.marks = {}; p.moves = {}; p.edits = {}; p.custom = p.custom || []; } });
       planWeekShown = null; if (d.act === 'plan-save') closeLayer();
@@ -2527,6 +2559,15 @@ document.addEventListener('click', e => {
     case 'custom-save': saveCustom(d.id); break;
     case 'c-repeat': b.setAttribute('aria-checked', String(b.getAttribute('aria-checked') !== 'true')); break;
     case 'p-wetsuit': b.setAttribute('aria-checked', String(b.getAttribute('aria-checked') !== 'true')); break;
+    case 'goal-split': {
+      const total = parseDur($('#g-total').value), note = $('#g-note');
+      if (!(total > 0)){ note.textContent = 'Enter a target finish time first, like 3:00:00.'; break; }
+      if (total < 3600 || total > 6 * 3600){ note.textContent = 'That target looks off for an Olympic distance: try something between 1:00:00 and 6:00:00.'; break; }
+      const ws = $('[data-act="p-wetsuit"]'), tr = parseDur($('#g-t').value);
+      const sp = suggestSplits(total, tr > 0 ? tr : 0, racePredictions({ wetsuit:!ws || ws.getAttribute('aria-checked') === 'true' }));
+      $('#g-swim').value = fmtDur(sp.swim); $('#g-ride').value = fmtDur(sp.ride); $('#g-run').value = fmtDur(sp.run); $('#g-t').value = fmtDur(sp.t);
+      note.textContent = splitNote(sp); break;
+    }
     case 'plan-settings': openPlanSettings(); break;
     case 'plan-stop':
       if (b.dataset.armed){ setSetting('plan', null); closeLayer(); toast('Plan stopped.'); }
