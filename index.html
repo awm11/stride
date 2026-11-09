@@ -329,6 +329,26 @@ textarea.t{min-height:90px;resize:vertical}
 .sessghost{position:fixed;z-index:3000;pointer-events:none;margin:0;box-shadow:0 14px 34px rgba(0,0,0,.28);transform:rotate(-2deg);opacity:.96}
 body.pdragging, body.pdragging *{cursor:grabbing !important}
 .dragnote{text-align:center;color:var(--muted);font-size:14px;margin:12px 0 0}
+.sess small.pool{color:var(--ink2);font-size:13px;margin-top:2px}
+.sess small.pool.none{color:var(--danger)}
+.poolbar{display:flex;justify-content:center;margin-top:10px}
+.pooltt .pmeta{color:var(--muted);font-size:14px;margin:-4px 0 12px}
+.pooltt .pday2{margin:0 0 14px}
+.pooltt .pday2 h3{font-family:var(--cond);font-size:20px;margin:0 0 6px;display:flex;align-items:baseline;gap:8px}
+.pooltt .pday2 h3 span{font-family:var(--body);font-size:13px;font-weight:700;color:var(--accent)}
+.pooltt .pwk{font-family:var(--cond);font-size:15px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px;padding-top:12px;border-top:1px solid var(--line)}
+.prow{display:grid;grid-template-columns:7.2em 1fr;gap:10px;align-items:baseline;padding:8px 10px;border-radius:10px;margin-bottom:3px;background:var(--surface2);border-left:4px solid var(--line)}
+.prow b{font-family:var(--cond);font-weight:600;font-size:17px;font-variant-numeric:tabular-nums}
+.prow.k-lane{border-left-color:var(--swim)}
+.prow.k-lane span{font-weight:700}
+.prow.k-swim{border-left-color:color-mix(in srgb,var(--swim) 50%,var(--line))}
+.prow.k-closed{border-left-color:var(--danger);color:var(--danger)}
+.prow.k-other{color:var(--ink2)}
+.prow.past{opacity:.5}
+.pooltt .pnone{color:var(--muted);font-size:15px;margin:0}
+.moves button.haslane::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--swim);margin-top:3px}
+.poolday{margin:6px 0 4px}
+.poolday .prow{padding:6px 10px}
 .sess.s-done{background:var(--surface2)}
 .sess.s-done b,.sess.s-skipped b,.sess.s-before b{color:var(--ink2)}
 .sess .ok{width:30px;height:30px;border-radius:50%;background:var(--c);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
@@ -2287,6 +2307,7 @@ function renderPlan(){
         ${sums.map(x => `<div class="wk-bar"><span>${SPORT_WORD[x.t]}</span><div class="track"><i style="width:${x.plan ? clamp(x.done / x.plan * 100, 0, 100) : 0}%;background:var(--${x.t})"></i></div><small>${x.done}/${x.plan} min</small></div>`).join('')}</div>
     </div>
     <div class="pdays">${dayRows}</div>
+    ${POOL ? '<div class="poolbar"><button class="btn" data-act="pool-tt">Pool timetable</button></div>' : ''}
     <p class="dragnote">Drag a session to another day to move it${matchMedia('(pointer:coarse)').matches ? ' (press and hold it first)' : ''}.</p>
   </div>`;
 }
@@ -2297,7 +2318,7 @@ function sessRow(s, x){
     ${extraRow(x.cand, true)}
     <div class="mrow"><button class="matchpill" data-act="match" data-id="${s.id}">${I.check}<span>Match sessions?</span></button><button class="linkbtn" data-act="nomatch" data-id="${s.id}">Keep separate</button></div></div>`;
   return `<button class="sess s-${x.status}${s.optional ? ' opt' : ''}" data-sess="${s.id}" style="--c:var(--${s.type})">
-    <span class="bar"></span><span class="tx"><b>${esc(s.title)}</b><small>${esc(x.status === 'done' && x.act ? statText(x.act) : sessSub(s))}</small></span>
+    <span class="bar"></span><span class="tx"><b>${esc(s.title)}</b><small>${esc(x.status === 'done' && x.act ? statText(x.act) : sessSub(s))}</small>${s.type === 'swim' && !['done', 'skipped', 'removed', 'before'].includes(x.status) && x.date >= dkey(now()) ? poolLine(x.date) : ''}</span>
     ${x.status === 'done' ? `<span class="ok" aria-label="Done">${I.check}</span>` : STATUS_TXT[x.status] && x.status !== 'today' ? `<span class="stx">${STATUS_TXT[x.status]}</span>` : ''}</button>`;
 }
 // an activity you did that no planned session counts it for
@@ -2308,13 +2329,15 @@ function openSession(id){
   const M = planModel(); if (!M) return; const s = M.byId.get(id); if (!s) return;
   const x = planStatus(M).get(id), date = sessDate(M, s), ws = M.weekStart(weekOfDate(M, date));
   const canRecord = x.date === dkey(now()) && x.status !== 'done';
-  const chips = [0,1,2,3,4,5,6].map(d => { const dd = addDaysD(ws, d), k = dkey(dd); return `<button data-movedate="${k}" aria-pressed="${k === x.date}">${'MTWTFSS'[d]}<small>${dd.getDate()}</small></button>`; }).join('');
+  const chips = [0,1,2,3,4,5,6].map(d => { const dd = addDaysD(ws, d), k = dkey(dd); return `<button data-movedate="${k}" aria-pressed="${k === x.date}"${s.type === 'swim' && laneSwims(k).length ? ' class="haslane"' : ''}>${'MTWTFSS'[d]}<small>${dd.getDate()}</small></button>`; }).join('');
   const isRace = s.tag === 'race', lenUnit = s.type === 'swim' && s.metres ? 'm' : 'min', lenVal = lenUnit === 'm' ? s.metres : s.mins;
   const mark = (M.p.marks || {})[s.id];
   openSheet('session', `<div class="sess-head" style="--c:var(--${s.type})"><span class="bar"></span><div><h2>${esc(s.title)}</h2>
       <p>${SPORT_WORD[s.type]}, ${DFW.format(date)}${s.custom ? ', your session' : `, week ${s.w}`}</p></div></div>
     <div class="sess-facts"><span><b>${esc(sessAmount(s))}</b>${s.type === 'swim' && s.metres ? `<small>about ${s.mins} min</small>` : '<small>planned</small>'}</span><span><b>${EFFORTS[s.effort]}</b><small>effort</small></span>${s.optional ? '<span><b>Optional</b><small>if you have time</small></span>' : ''}</div>
     <ol class="steps">${s.steps.map(t => `<li>${esc(t)}</li>`).join('')}</ol>
+    ${s.type === 'swim' && poolDay(x.date) ? `<h3 class="sheet-sub">At the pool that day</h3><div class="poolday">${poolDay(x.date).length ? poolRows(poolDay(x.date), x.date) : '<p class="note">Nothing on the timetable.</p>'}</div>
+      <p class="note" style="margin:4px 0 0">${s.tag === 'race' ? '' : 'Days with a dot below have lane swimming. '}<button class="linkbtn" data-act="pool-tt">Full timetable</button></p>` : ''}
     ${x.status === 'done' ? `<p class="banner">${x.act ? `Done: <b>${esc(x.act.name)}</b>, ${statText(x.act)}.` : 'Marked as done.'}</p>` : x.status === 'skipped' ? '<p class="banner">Skipped.</p>' : ''}
     ${x.status === 'pending' ? `<p class="banner">You did <b>${esc(x.cand.name)}</b> (${statText(x.cand)}) on this day. Count it for this session?</p>
       <div class="btnrow"><button class="btn primary" data-act="match" data-id="${s.id}">Match sessions</button><button class="btn" data-act="nomatch" data-id="${s.id}">Keep separate</button></div>` : ''}
@@ -2834,6 +2857,64 @@ async function restoreBackup(file){
 let toastT;
 function toast(msg, ms = 2600){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms); }
 
+/* ---------- pool timetable ---------- */
+// A daily job (.github/workflows/pool.yml) copies the club's timetable to the pool-data branch; Stride reads it from there.
+const POOL_URL = 'https://raw.githubusercontent.com/awm11/stride/pool-data/pool.json', POOL_LS = 'stride:pool';
+let POOL = null;
+try { POOL = JSON.parse(localStorage.getItem(POOL_LS) || 'null'); } catch {}
+async function loadPool(force){
+  if (!navigator.onLine) return;
+  if (!force && POOL && Date.now() - (POOL.got || 0) < 3 * 3600e3) return;
+  try {
+    const r = await fetch(POOL_URL, { cache:'no-store' }); if (!r.ok) return;
+    const d = await r.json(); if (!d || !d.days) return;
+    POOL = { ...d, got:Date.now() };
+    try { localStorage.setItem(POOL_LS, JSON.stringify(POOL)); } catch {}
+    if (S.tab === 'plan') renderPlan();
+    if ($('#sheet .pooltt')) openPoolTimetable(true);
+  } catch {}
+}
+const poolDay = dk => POOL?.days?.[dk] || null;
+function poolKind(name){
+  if (/clos/i.test(name)) return 'closed';
+  if (/lane/i.test(name)) return 'lane';
+  if (/general|public|family|open swim|streamline/i.test(name)) return 'swim';
+  return 'other';
+}
+const laneSwims = dk => (poolDay(dk) || []).filter(x => poolKind(x[2]) === 'lane');
+// for a swim card: when the lanes are open that day
+function poolLine(dk){
+  const d = poolDay(dk); if (!d) return '';
+  const lanes = laneSwims(dk), closed = d.filter(x => poolKind(x[2]) === 'closed');
+  if (!lanes.length) return `<small class="pool none">No lane swim${closed.length ? ' (pool closed ' + closed.map(x => x[0]).join(', ') + ')' : ''}</small>`;
+  const starts = [...new Set(lanes.map(x => x[0]))];
+  return `<small class="pool">Lanes ${starts.join(', ')}</small>`;
+}
+function poolRows(list, dk){
+  const nowHM = dk === dkey(now()) ? TF.format(now()) : null;
+  return list.map(x => `<div class="prow k-${poolKind(x[2])}${nowHM && x[1] <= nowHM ? ' past' : ''}"><b>${x[0]}–${x[1]}</b><span>${esc(x[2])}</span></div>`).join('');
+}
+let poolFilter = 'all';
+function openPoolTimetable(refresh){
+  if (!POOL){ toast(navigator.onLine ? 'Loading the pool timetable…' : 'The pool timetable needs a signal the first time.'); loadPool(true); return; }
+  const today = dkey(now()), keys = Object.keys(POOL.days).filter(k => k >= today).sort();
+  let html = '', lastWk = null;
+  for (const k of keys){
+    const d = fromDkey(k), wk = dkey(addDaysD(d, -((d.getDay() + 6) % 7)));
+    if (wk !== lastWk){ html += lastWk ? `<p class="pwk">Week of ${DFS.format(fromDkey(wk))}</p>` : ''; lastWk = wk; }
+    const list = POOL.days[k].filter(x => poolFilter === 'all' || ['lane', 'swim'].includes(poolKind(x[2])));
+    html += `<div class="pday2"><h3>${DFW.format(d)}${k === today ? '<span>Today</span>' : ''}</h3>${list.length ? poolRows(list, k) : `<p class="pnone">${poolFilter === 'all' ? 'Nothing on the timetable.' : 'No lane or general swims.'}</p>`}</div>`;
+  }
+  const got = new Date(POOL.fetched);
+  const body = `<div class="pooltt"><h2>Pool timetable</h2>
+    <p class="pmeta">${esc(POOL.name || '')}${POOL.fetched ? `, updated ${DFS.format(got)} ${TF.format(got)}` : ''}</p>
+    <div class="seg" role="radiogroup" style="margin-bottom:14px"><button role="radio" aria-checked="${poolFilter === 'all'}" data-poolf="all">Everything</button><button role="radio" aria-checked="${poolFilter === 'swims'}" data-poolf="swims">Lane &amp; general</button></div>
+    ${html || '<p class="pnone">No dates ahead yet.</p>'}
+    <div class="stack">${POOL.book ? `<a class="btn primary block" href="${esc(POOL.book)}" target="_blank" rel="noopener">Book a session</a>` : ''}${POOL.page ? `<a class="btn block" href="${esc(POOL.page)}" target="_blank" rel="noopener">The club’s timetable page</a>` : ''}<button class="btn block" data-act="close-sheet">Close</button></div></div>`;
+  if ($('#sheet-wrap').hidden) openSheet('pool', body);
+  else { const sc = refresh ? $('#sheet').scrollTop : 0; sheetKind = 'pool'; $('#sheet').innerHTML = body; $('#sheet').scrollTop = sc; }
+}
+
 /* ---------- drag plan sessions between days ---------- */
 // Mouse: drag straight away. Touch: press and hold, then drag (a quick swipe still scrolls the page).
 let pdrag = null, pdragEat = false;
@@ -2893,6 +2974,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && pdrag?.on)
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('.phases[data-act]')){ e.preventDefault(); openPhases(); } });
 document.addEventListener('touchmove', e => { if (pdrag?.on) e.preventDefault(); }, { passive:false });
 document.addEventListener('contextmenu', e => { if (pdrag || e.target.closest('#v-plan .sess')) e.preventDefault(); });
+// in the Android app, outside links open in the phone's browser
+document.addEventListener('click', e => { const a = e.target.closest('a[target="_blank"]'); if (a && NP){ e.preventDefault(); NP.Browser.open({ url:a.href }).catch(() => {}); } });
 // the click that ends a drag shouldn't also open the session
 document.addEventListener('click', e => { if (pdragEat){ pdragEat = false; e.stopPropagation(); e.preventDefault(); } }, true);
 
@@ -2908,6 +2991,7 @@ document.addEventListener('click', e => {
   if (d.stype){ $$('#sheet [data-stype]').forEach(x => x.setAttribute('aria-checked', String(x === b))); return; }
   if (d.mtype){ $$('#sheet [data-mtype]').forEach(x => x.setAttribute('aria-checked', String(x === b))); manualUnits(); return; }
   if (d.sess){ openSession(d.sess); return; }
+  if (d.poolf){ poolFilter = d.poolf; openPoolTimetable(true); return; }
   if (d.phweek){ planWeekShown = +d.phweek; closeLayer(); renderPlan(); $('#v-plan').scrollTop = 0; return; }
   if (d.pweek){ planWeekShown = +d.pweek; renderPlan(); $('#v-plan').scrollTop = 0; return; }
   if (d.movedate && b.closest('.moves')){ movePlanned(b.closest('.moves').dataset.id, d.movedate); return; }
@@ -3006,6 +3090,7 @@ document.addEventListener('click', e => {
     }
     case 'plan-settings': openPlanSettings(); break;
     case 'phases': openPhases(); break;
+    case 'pool-tt': openPoolTimetable(); break;
     case 'plan-stop':
       if (b.dataset.armed){ setSetting('plan', null); closeLayer(); toast('Plan stopped.'); }
       else { b.dataset.armed = '1'; b.textContent = 'Tap again to stop the plan'; b.classList.add('solid'); }
@@ -3044,6 +3129,9 @@ showTab('record');
 if (rec){ startWatch(); wakeOn(); startTick(); }
 initCloud();
 renderAppSign();
+loadPool();
+window.addEventListener('online', () => loadPool());
+document.addEventListener('visibilitychange', () => { if (!document.hidden) loadPool(); });
 if (!CAP && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
 if (NP){
   NP.App.addListener('appUrlOpen', e => onAppUrl(e && e.url));
