@@ -1,0 +1,38 @@
+# Saves the pool timetable once a day to the pool-data branch as pool.json, which Stride reads.
+# The club's site doesn't let other websites read its timetable directly, so this copies it somewhere Stride can.
+name: Pool timetable
+
+on:
+  schedule:
+    - cron: '23 3 * * *'      # 03:23 UTC every day
+  push:
+    branches: [main]
+    paths: ['tools/pool-timetable.mjs', '.github/workflows/pool.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    env:
+      POOL_NAME: JAGS Sports Club
+      POOL_AJAX: https://jagssportsclub.co.uk/wp/wp-admin/admin-ajax.php
+      POOL_CAL: swimming
+      POOL_PAGE: https://jagssportsclub.co.uk/timetable/
+      POOL_BOOK: https://jagssportsclub.gladstonego.cloud/book
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Fetch the timetable
+        run: |
+          git fetch -q origin pool-data && git show FETCH_HEAD:pool.json > "$RUNNER_TEMP/prev.json" || echo '{}' > "$RUNNER_TEMP/prev.json"
+          node tools/pool-timetable.mjs "$RUNNER_TEMP/prev.json" "$RUNNER_TEMP/out/pool.json"
+      - name: Publish to the pool-data branch
+        run: |
+          cd "$RUNNER_TEMP/out"
+          git init -q -b pool-data && git add pool.json
+          git -c user.name="Stride timetable" -c user.email="ci@users.noreply.github.com" commit -qm "Pool timetable $(date -u +%F)"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" pool-data
