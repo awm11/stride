@@ -1336,8 +1336,12 @@ function makeMap(el){
   const m = L.map(el, { zoomControl:false, attributionControl:true, worldCopyJump:true });
   m.attributionControl.setPrefix(false);
   setTiles(m);
+  // route lines thin a little as you zoom out (down to 70% of full width) and thicken slightly zoomed right in
+  m.on('layeradd', e => { const l = e.layer; if (l instanceof L.Polyline && l.options.weight && l._bw == null){ l._bw = l.options.weight; l.setStyle({ weight:l._bw * lineScale(m) }); } });
+  m.on('zoomend', () => { const f = lineScale(m); m.eachLayer(l => { if (l._bw != null) l.setStyle({ weight:l._bw * f }); }); });
   return m;
 }
+const lineScale = m => { const z = m._loaded ? m.getZoom() : 16; return clamp(1 + (z - 16) * 0.06, 0.7, 1.1); };
 function setTiles(m){
   const t = TILES[S.settings.map] || TILES.streets;
   if (m._tl){ if (m._tlKey === S.settings.map) return; m.removeLayer(m._tl); }
@@ -2992,7 +2996,7 @@ async function checkApp(){
   } catch(e) {}
 }
 setTimeout(checkApp, 3000);
-window.__stride = { S, store, NP, analyze, encodeTrack, decodeTrack, fitForCloud, getTrack, get rec(){ return rec; } };
+window.__stride = { S, store, NP, analyze, encodeTrack, decodeTrack, fitForCloud, getTrack, get rec(){ return rec; }, get dMap(){ return dMap; } };
 </script>
 </body>
 </html>
