@@ -1,0 +1,37 @@
+name: Swim timetable probe
+on:
+  push:
+    paths: ['.github/workflows/swim-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch the timetable page and its scripts
+        run: |
+          mkdir -p "$RUNNER_TEMP/p" && cd "$RUNNER_TEMP/p"
+          UA="Mozilla/5.0 (StrideTimetable; personal use)"
+          curl -sSL -A "$UA" -o page.html -w '%{http_code} page\n' "https://jagssportsclub.co.uk/timetable/" | tee status.txt
+          grep -oE '(src|href)="[^"]+\.js[^"]*"' page.html | sed -E 's/^(src|href)="//; s/"$//' | sort -u > scripts.txt
+          i=0; while read -r u; do i=$((i+1)); case "$u" in http*) ;; //*) u="https:$u";; /*) u="https://jagssportsclub.co.uk$u";; *) u="https://jagssportsclub.co.uk/timetable/$u";; esac
+            curl -sSL -A "$UA" -o "js$i.js" "$u" -w "%{http_code} $u\n" >> status.txt || true; done < scripts.txt
+          grep -n -iE "gladstone|api|timetable|ajax|fetch\(|wp-json|admin-ajax|\.json" page.html | cut -c1-400 > page-hits.txt || true
+          for f in js*.js; do grep -o -iE ".{0,160}(gladstone|timetable|admin-ajax|wp-json|/api/).{0,200}" "$f" | head -40 | sed "s|^|$f: |"; done > js-hits.txt || true
+          # Gladstone Go's public API: try the usual timetable endpoints
+          for u in \
+            "https://jagssportsclub.gladstonego.cloud/book" \
+            "https://jagssportsclub.gladstonego.cloud/api/availability/V2/sessions?webBookableOnly=true&siteIds=&activityIds=&locationIds=&dateFrom=$(date -u +%F)T00:00:00.000Z&dateTo=$(date -u -d '+7 days' +%F)T00:00:00.000Z" \
+            "https://jagssportsclub.gladstonego.cloud/api/activities" \
+            "https://jagssportsclub.gladstonego.cloud/api/sites" ; do
+            n=$(echo "$u" | md5sum | cut -c1-6); curl -sSL -A "$UA" -H 'Accept: application/json' -o "g-$n.txt" -w "%{http_code} %{content_type} $u -> g-$n.txt\n" "$u" >> status.txt || echo "fail $u" >> status.txt
+          done
+          ls -la >> status.txt
+      - name: Save results
+        if: always()
+        run: |
+          cd "$RUNNER_TEMP/p"
+          git init -q -b swim-probe && git add -A
+          git -c user.name="Stride CI" -c user.email="ci@users.noreply.github.com" commit -qm "probe ${{ github.run_number }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" swim-probe
