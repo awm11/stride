@@ -1,0 +1,71 @@
+ACTIVITY MANAGER SERVICES (dumpsys activity services)
+  User 0 active services:
+  * ServiceRecord{84ed0e3 u0 com.alexmoorephysics.stride/org.chromium.content.app.SandboxedProcessService0:0}
+    intent={cmp=com.alexmoorephysics.stride/org.chromium.content.app.SandboxedProcessService0:0}
+    packageName=com.alexmoorephysics.stride
+    processName=com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0
+    baseDir=/data/app/~~5jiVAMa7HcD51CGhK-0Otw==/com.google.android.webview-Q0_-oxZK7zJMZQt_JZin-A==/WebViewGoogle.apk
+    dataDir=/data/user/0/com.google.android.webview
+    app=ProcessRecord{45441bb 3836:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0/u0a192i0}
+    isolationHostProc=ProcessRecord{45441bb 3836:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0/u0a192i0}
+    mAllowWhileInUsePermissionInFgsReason=PROC_STATE_TOP
+    allowUiJobScheduling=false
+    recentCallingPackage=com.alexmoorephysics.stride
+    recentCallingUid=10192
+    allowStartForeground=PROC_STATE_TOP
+    startForegroundCount=0
+    infoAllowStartForeground=[callingPackage: com.alexmoorephysics.stride; callingUid: 10192; uidState: TOP ; uidBFSL: [BFSL]; intent: Intent { cmp=com.alexmoorephysics.stride/org.chromium.content.app.SandboxedProcessService0:0 (has extras) }; code:PROC_STATE_TOP; tempAllowListReason:<null>; targetSdkVersion:34; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null: isBindService:true]
+    createTime=-50s515ms startingBgTimeout=--
+    lastActivity=-49s838ms restartTime=-50s263ms createdFromFg=true
+    Bindings:
+    * IntentBindRecord{1424c2d CREATE}:
+      intent={cmp=com.alexmoorephysics.stride/org.chromium.content.app.SandboxedProcessService0:0}
+      binder=android.os.BinderProxy@43e5562
+      requested=true received=true hasBound=true doRebind=false
+      * Client AppBindRecord{85a66f3 ProcessRecord{ae772c4 3674:com.alexmoorephysics.stride/u0a192}}
+        Per-process Connections:
+          ConnectionRecord{832db6f u0 CR WPRI com.alexmoorephysics.stride/org.chromium.content.app.SandboxedProcessService0:0:@d2e1e4e flags=0x80000021}
+          ConnectionRecord{fe12eb6 u0 CR IMP com.alexmoorephysics.stride/org.chromium.content.app.SandboxedProcessService0:0:@bb62651 flags=0x80000041}
+    All Connections:
+      ConnectionRecord{fe12eb6 u0 CR IMP com.alexmoorephysics.stride/org.chromium.content.app.SandboxedProcessService0:0:@bb62651 flags=0x80000041}
+      ConnectionRecord{832db6f u0 CR WPRI com.alexmoorephysics.stride/org.chromium.content.app.SandboxedProcessService0:0:@d2e1e4e flags=0x80000021}
+
+  * ServiceRecord{c7a33d4 u0 com.alexmoorephysics.stride/com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService}
+    intent={cmp=com.alexmoorephysics.stride/com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService}
+    packageName=com.alexmoorephysics.stride
+    processName=com.alexmoorephysics.stride
+    baseDir=/data/app/~~vciJ8X_pSmytKlkD3a_WAA==/com.alexmoorephysics.stride-6SWRZKHaPcbgpJUpIZqFlQ==/base.apk
+    dataDir=/data/user/0/com.alexmoorephysics.stride
+    app=ProcessRecord{ae772c4 3674:com.alexmoorephysics.stride/u0a192}
+    mAllowWhileInUsePermissionInFgsReason=PROC_STATE_TOP
+    allowUiJobScheduling=false
+    recentCallingPackage=com.alexmoorephysics.stride
+    recentCallingUid=10192
+    allowStartForeground=PROC_STATE_TOP
+    startForegroundCount=1
+    infoAllowStartForeground=[callingPackage: com.alexmoorephysics.stride; callingUid: 10192; uidState: TOP ; uidBFSL: [BFSL]; intent: Intent { cmp=com.alexmoorephysics.stride/com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService }; code:PROC_STATE_TOP; tempAllowListReason:<null>; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null: isBindService:false]; startForegroundDelayMs:44255
+    isForeground=true foregroundId=28351 types=00000008 foregroundNoti=Notification(channel=com.equimaps.capacitor_background_geolocation shortcut=null contentView=null vibrate=null sound=null defaults=0x0 flags=0x42 color=0xffe8487f vis=PRIVATE)
+    createTime=-50s176ms startingBgTimeout=--
+    lastActivity=-50s176ms restartTime=-50s176ms createdFromFg=true
+    Bindings:
+    * IntentBindRecord{cce0fb0 CREATE}:
+      intent={cmp=com.alexmoorephysics.stride/com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService}
+      binder=android.os.BinderProxy@ea47e29
+      requested=true received=true hasBound=true doRebind=false
+      * Client AppBindRecord{73065ae ProcessRecord{ae772c4 3674:com.alexmoorephysics.stride/u0a192}}
+        Per-process Connections:
+          ConnectionRecord{275b527 u0 CR com.alexmoorephysics.stride/com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService:@d61ebe6 flags=0x1}
+    All Connections:
+      ConnectionRecord{275b527 u0 CR com.alexmoorephysics.stride/com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService:@d61ebe6 flags=0x1}
+
+  Connection bindings to services:
+  * ConnectionRecord{fe12eb6 u0 CR IMP com.alexmoorephysics.stride/org.chromium.content.app.SandboxedProcessService0:0:@bb62651 flags=0x80000041}
+    binding=AppBindRecord{85a66f3 com.alexmoorephysics.stride/org.chromium.content.app.SandboxedProcessService0:0:com.alexmoorephysics.stride}
+    conn=android.os.BinderProxy@bb62651 flags=0x80000041
+  * ConnectionRecord{832db6f u0 CR WPRI com.alexmoorephysics.stride/org.chromium.content.app.SandboxedProcessService0:0:@d2e1e4e flags=0x80000021}
+    binding=AppBindRecord{85a66f3 com.alexmoorephysics.stride/org.chromium.content.app.SandboxedProcessService0:0:com.alexmoorephysics.stride}
+    conn=android.os.BinderProxy@d2e1e4e flags=0x80000021
+  * ConnectionRecord{275b527 u0 CR com.alexmoorephysics.stride/com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService:@d61ebe6 flags=0x1}
+    binding=AppBindRecord{73065ae com.alexmoorephysics.stride/com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService:com.alexmoorephysics.stride}
+    activity=ActivityRecord{9ba664a u0 com.alexmoorephysics.stride/.MainActivity t8}
+    conn=android.os.BinderProxy@d61ebe6 flags=0x1

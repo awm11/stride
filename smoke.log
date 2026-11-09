@@ -1,0 +1,15 @@
+Performing Streamed Install
+Success
+SMOKE ok - installed
+SMOKE ok - sign-in link opens the app
+SMOKE ok - app shows the sign-in screen
+SMOKE ok - GPS fix shown
+SMOKE ok - background location service running
+SMOKE ok - recording notification shown
+distance on screen after screen-off walk: 0.20
+SMOKE ok - recorded 0.20 km with the screen off
+SMOKE ok - no GPS gap
+SMOKE ok - app still running after a bad sign-in link
+SMOKE ok - no script errors
+SMOKE ok - no crashes
+SMOKE PASSED
