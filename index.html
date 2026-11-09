@@ -2358,13 +2358,13 @@ function planForm(p, setup){
     <div class="slots">${SLOT_DEFS.map(slotRow).join('')}</div>
     </div>
     <h3 class="sheet-sub">Goal times (optional)</h3>
-    <div class="frow"><div><label class="f" for="g-total">Target finish time</label><input class="t" id="g-total" inputmode="decimal" placeholder="h:mm:ss" value="${dur(g.total)}"></div>
+    <div class="frow"><div><label class="f" for="g-total">Target finish time</label><input class="t" id="g-total" inputmode="decimal" placeholder="e.g. 3:00:00" value="${dur(g.total)}"></div>
       <div style="display:flex;align-items:flex-end"><button class="btn block" data-act="goal-split" style="min-height:52px">Suggest splits</button></div></div>
     <p class="note" id="g-note" style="margin:6px 0 0">Enter a whole-race target and tap Suggest splits, or set each leg yourself below.</p>
-    <div class="frow"><div><label class="f" for="g-swim">Swim 1500 m</label><input class="t" id="g-swim" inputmode="decimal" placeholder="mm:ss" value="${dur(g.swim)}"></div>
-      <div><label class="f" for="g-ride">Bike 40 km</label><input class="t" id="g-ride" inputmode="decimal" placeholder="h:mm:ss" value="${dur(g.ride)}"></div></div>
-    <div class="frow"><div><label class="f" for="g-run">Run 10 km</label><input class="t" id="g-run" inputmode="decimal" placeholder="mm:ss" value="${dur(g.run)}"></div>
-      <div><label class="f" for="g-t">Transitions</label><input class="t" id="g-t" inputmode="decimal" placeholder="5:00" value="${dur(g.t)}"></div></div>
+    <div class="frow"><div><label class="f" for="g-swim">Swim 1500 m</label><input class="t" id="g-swim" inputmode="decimal" placeholder="e.g. 35 or 34:30" value="${dur(g.swim)}"></div>
+      <div><label class="f" for="g-ride">Bike 40 km</label><input class="t" id="g-ride" inputmode="decimal" placeholder="e.g. 1:25:00" value="${dur(g.ride)}"></div></div>
+    <div class="frow"><div><label class="f" for="g-run">Run 10 km</label><input class="t" id="g-run" inputmode="decimal" placeholder="e.g. 55 or 54:30" value="${dur(g.run)}"></div>
+      <div><label class="f" for="g-t">Transitions</label><input class="t" id="g-t" inputmode="decimal" placeholder="e.g. 5" value="${dur(g.t)}"></div></div>
     <div class="row"><span class="lbl">Wetsuit for the swim<span class="sub">Usual in UK races unless the water is warm</span></span><button class="switch" role="switch" data-act="p-wetsuit" aria-checked="${g.wetsuit !== false}" aria-label="Wetsuit for the swim"></button></div>
     <button class="btn block" style="margin-top:10px" data-act="goal-suggest">Use my current estimates</button>
     <p class="msg" id="p-msg"></p>`;
@@ -2465,8 +2465,18 @@ function todayCard(){
 }
 
 /* manual activities: pool swims, turbo rides, treadmill runs */
+// Durations: a plain number is minutes ("18" = 18:00). Also "18:30", "1:05:00", "18.30" (phone keypads often have no colon),
+// "18.5" (decimal minutes), "18 min", "1h 5m", "1h05", "90s".
 function parseDur(str){
-  const p = String(str || '').trim().split(':').map(x => x.trim());
+  let t = String(str || '').trim().toLowerCase();
+  const um = t.match(/^(?:(\d+(?:[.,]\d+)?)\s*h(?:ours?|rs?)?)?\s*(?:(\d+(?:[.,]\d+)?)\s*m(?:ins?|inutes?)?)?\s*(?:(\d+(?:[.,]\d+)?)\s*s(?:ecs?|econds?)?)?$/);
+  const num = x => x ? +x.replace(',', '.') : 0;
+  if (um && (um[1] || um[2] || um[3])) return num(um[1]) * 3600 + num(um[2]) * 60 + num(um[3]);
+  const hm = t.match(/^(\d+)\s*h\s*(\d{1,2})$/); if (hm) return +hm[1] * 3600 + +hm[2] * 60;
+  t = t.replace(/\s+/g, '');
+  if (/^\d+([.,]\d{2}){1,2}$/.test(t)) t = t.replace(/[.,]/g, ':');
+  t = t.replace(',', '.');
+  const p = t.split(':');
   if (!p.length || p.some(x => !/^\d+(\.\d+)?$/.test(x))) return NaN;
   const n = p.map(Number);
   return n.length === 1 ? n[0] * 60 : n.length === 2 ? n[0] * 60 + n[1] : n[0] * 3600 + n[1] * 60 + n[2];
@@ -2482,7 +2492,7 @@ function openManual(pre = {}){
     <label class="f">Type</label>${typeSeg(a ? a.type : type, 'mtype')}
     <div class="frow"><div><label class="f" for="m-date">Date</label><input class="t" id="m-date" type="date" value="${dkey(start)}"></div>
       <div><label class="f" for="m-time">Start time</label><input class="t" id="m-time" type="time" value="${tm}"></div></div>
-    <div class="frow"><div><label class="f" for="m-dur">Time taken</label><input class="t" id="m-dur" inputmode="decimal" placeholder="mm:ss or h:mm:ss" value="${a ? fmtDur(a.stats.time) : pre.mins ? pre.mins + ':00' : ''}"></div>
+    <div class="frow"><div><label class="f" for="m-dur">Time taken</label><input class="t" id="m-dur" inputmode="decimal" placeholder="minutes, e.g. 18 or 18:30" value="${a ? fmtDur(a.stats.time) : pre.mins ? pre.mins + ':00' : ''}"></div>
       <div><label class="f" for="m-dist" id="m-dist-l">Distance</label><input class="t" id="m-dist" inputmode="decimal" placeholder="optional" value="${distV}"></div></div>
     <label class="f" for="f-name">Name</label><input class="t" id="f-name" maxlength="80" value="${esc(a ? a.name : pre.title || '')}" placeholder="optional">
     <label class="f" for="f-notes">Notes</label><textarea class="t" id="f-notes" maxlength="2000">${esc(a ? a.notes || '' : '')}</textarea>
@@ -3057,7 +3067,7 @@ async function checkApp(){
   } catch(e) {}
 }
 setTimeout(checkApp, 3000);
-window.__stride = { S, store, NP, analyze, encodeTrack, decodeTrack, fitForCloud, getTrack, get rec(){ return rec; }, get dMap(){ return dMap; } };
+window.__stride = { S, store, NP, analyze, encodeTrack, decodeTrack, fitForCloud, getTrack, get rec(){ return rec; }, get dMap(){ return dMap; }, parseDur };
 </script>
 </body>
 </html>
