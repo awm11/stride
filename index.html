@@ -309,6 +309,20 @@ textarea.t{min-height:90px;resize:vertical}
 .sess b{display:block;font-size:16px}
 .sess small{display:block;color:var(--muted);font-size:14px}
 .sess.opt{border-style:dashed}
+.sess.extra{background:transparent;border-style:dashed}
+.sess.extra .bar{opacity:.55}
+.fuse{border:2px solid var(--c);border-radius:14px;background:var(--surface);margin-bottom:6px;overflow:hidden}
+.fuse .sess{border:0;border-radius:0;margin:0;background:transparent}
+.fuse .sess + .sess{border-top:1px dashed var(--line)}
+.fuse .mrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:2px 12px 12px 17px}
+.fuse .mrow .linkbtn{font-size:14px}
+.matchpill{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 16px;border-radius:999px;background:var(--c);color:#fff;font-weight:700;font-size:15px;white-space:nowrap}
+@media (min-width:900px){
+  .fuse .mrow{flex-direction:column;align-items:stretch;gap:4px;padding:4px 8px 8px}
+  .matchpill{padding:6px 8px;font-size:14px;gap:4px;white-space:normal;line-height:1.15;text-align:center;border-radius:16px}
+  .matchpill svg{display:none}
+}
+.matchpill svg{width:16px;height:16px;stroke-width:3}
 .sess{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .sess.dragging{opacity:.35}
 .pday.drop{outline:2px dashed var(--accent);outline-offset:4px;border-radius:12px}
@@ -2050,22 +2064,34 @@ function planStatus(M){
   const byKey = new Map();
   for (const a of liveActs()){ if (a.type === 'walk') continue; const k = dkey(a.start) + '|' + a.type; (byKey.get(k) || byKey.set(k, []).get(k)).push(a); }
   for (const l of byKey.values()) l.sort((a, b) => a.start - b.start);
-  const used = new Set(), st = new Map();
+  const used = new Set(), st = new Map(), links = M.p.links || {}, pend = M.p.pend || {}, unlink = M.p.unlink || {};
+  const byId = new Map(liveActs().map(a => [a.id, a]));
+  const fits = (s, date, a) => a && a.type === s.type && dkey(a.start) === date && !used.has(a.id);
   const ordered = [...M.sessions].sort((a, b) => (a.optional ? 1 : 0) - (b.optional ? 1 : 0));
+  const live = s => { const m = marks[s.id]; return m !== 'skip' && m !== 'removed'; };
+  const found = new Map(), pending = new Map();
+  // 1. sessions you've matched by hand  2. sessions moved onto an activity, waiting for you to say  3. everything else by sport and day
+  for (const s of ordered){ const date = dkey(sessDate(M, s)), a = byId.get(links[s.id]); if (live(s) && fits(s, date, a)){ found.set(s.id, a); used.add(a.id); } }
+  for (const s of ordered){ if (found.has(s.id) || !live(s)) continue; const date = dkey(sessDate(M, s)), a = byId.get(pend[s.id]); if (fits(s, date, a)){ pending.set(s.id, a); used.add(a.id); } }
   for (const s of ordered){
-    const date = dkey(sessDate(M, s)), mark = marks[s.id];
-    let act = null;
-    if (mark !== 'skip' && mark !== 'removed'){ act = (byKey.get(date + '|' + s.type) || []).find(a => !used.has(a.id)) || null; if (act) used.add(act.id); }
+    if (found.has(s.id) || pending.has(s.id) || !live(s)) continue;
+    const date = dkey(sessDate(M, s)), a = (byKey.get(date + '|' + s.type) || []).find(a => !used.has(a.id) && unlink[s.id] !== a.id);
+    if (a){ found.set(s.id, a); used.add(a.id); }
+  }
+  for (const s of ordered){
+    const date = dkey(sessDate(M, s)), mark = marks[s.id], act = found.get(s.id) || null, cand = pending.get(s.id) || null;
     let status;
     if (mark === 'removed') status = 'removed';
     else if (mark === 'skip') status = 'skipped';
+    else if (cand) status = 'pending';
     else if (act || mark === 'done') status = 'done';
     else if (date < joined) status = 'before';
     else if (date < today) status = s.optional ? 'dropped' : 'missed';
     else if (date === today) status = 'today';
     else status = 'upcoming';
-    st.set(s.id, { status, act, date, manual:mark === 'done' && !act });
+    st.set(s.id, { status, act, cand, date, manual:mark === 'done' && !act });
   }
+  st.used = used;
   return st;
 }
 function sessAmount(s){
@@ -2227,17 +2253,21 @@ function renderPlan(){
     : days < 0 ? 'Plan complete.'
     : `<b>${curPh.name}</b>, weeks ${curPh.from}–${curPh.to}${nextPh ? `. ${nextPh.name} starts ${DFW.format(M.weekStart(nextPh.from))}.` : '.'}`;
   const markerPct = clamp((weekOfDate(M, today) - 1 + ((today.getDay() + 6) % 7) / 7) / PLAN_WEEKS * 100, 0, 100);
+  const wsK = dkey(ws), weK = dkey(addDaysD(ws, 6));
+  const weekActs = liveActs().filter(a => a.type !== 'walk' && dkey(a.start) >= wsK && dkey(a.start) <= weK).sort((a, b) => a.start - b.start);
   const sums = SPORT_ORDER.map(t => {
     const plan = wkS.filter(s => s.type === t && !s.optional).reduce((a, s) => a + s.mins, 0);
-    const done = wkS.filter(s => s.type === t).reduce((a, s) => { const x = st.get(s.id); return a + (x.status !== 'done' ? 0 : x.act ? Math.round((x.act.stats?.time || 0) / 60) : s.mins); }, 0);
+    const done = Math.round(weekActs.filter(a => a.type === t).reduce((a, x) => a + (x.stats?.time || 0) / 60, 0))
+      + wkS.filter(s => s.type === t && st.get(s.id).manual && st.get(s.id).status === 'done').reduce((a, s) => a + s.mins, 0);
     return { t, plan, done };
   });
   const totPlan = sums.reduce((a, x) => a + x.plan, 0), totDone = sums.reduce((a, x) => a + x.done, 0);
   const g = M.p.goal || {}, gt = goalTotal(g);
   const dayRows = [0,1,2,3,4,5,6].map(d => {
     const date = addDaysD(ws, d), dk = dkey(date), ds = wkS.filter(s => dkey(sessDate(M, s)) === dk), isToday = dk === dkey(today);
+    const ex = weekActs.filter(a => dkey(a.start) === dk && !st.used.has(a.id));
     return `<div class="pday${isToday ? ' today' : ''}" data-date="${dk}"><div class="pdh"><b>${DFW.format(date)}</b>${isToday ? '<span>Today</span>' : ''}<button class="addsess" data-act="add-sess" data-date="${dk}" aria-label="Add a session on ${DFW.format(date)}">${I.plus}</button></div>
-      ${ds.length ? ds.map(s => sessRow(s, st.get(s.id))).join('') : '<p class="rest">Rest</p>'}</div>`;
+      ${ds.length || ex.length ? ds.map(s => sessRow(s, st.get(s.id))).join('') + ex.map(a => extraRow(a)).join('') : '<p class="rest">Rest</p>'}</div>`;
   }).join('');
   v.innerHTML = `<div class="scroll-pad wide"><div class="vhead"><h1 class="vtitle">Plan</h1><button class="iconbtn" data-act="plan-settings" aria-label="Plan settings">${I.edit}</button></div>
     <div class="plan-top"><div class="card racecard">
@@ -2262,9 +2292,17 @@ function renderPlan(){
 }
 const STATUS_TXT = { done:'Done', skipped:'Skipped', missed:'Missed', dropped:'Not done', today:'Today', upcoming:'', before:'' };
 function sessRow(s, x){
+  if (x.status === 'pending') return `<div class="fuse" style="--c:var(--${s.type})">
+    <button class="sess s-pending" data-sess="${s.id}"><span class="bar"></span><span class="tx"><b>${esc(s.title)}</b><small>${esc(sessSub(s))}</small></span><span class="stx">Planned</span></button>
+    ${extraRow(x.cand, true)}
+    <div class="mrow"><button class="matchpill" data-act="match" data-id="${s.id}">${I.check}<span>Match sessions?</span></button><button class="linkbtn" data-act="nomatch" data-id="${s.id}">Keep separate</button></div></div>`;
   return `<button class="sess s-${x.status}${s.optional ? ' opt' : ''}" data-sess="${s.id}" style="--c:var(--${s.type})">
-    <span class="bar"></span><span class="tx"><b>${esc(s.title)}</b><small>${esc(sessSub(s))}</small></span>
+    <span class="bar"></span><span class="tx"><b>${esc(s.title)}</b><small>${esc(x.status === 'done' && x.act ? statText(x.act) : sessSub(s))}</small></span>
     ${x.status === 'done' ? `<span class="ok" aria-label="Done">${I.check}</span>` : STATUS_TXT[x.status] && x.status !== 'today' ? `<span class="stx">${STATUS_TXT[x.status]}</span>` : ''}</button>`;
+}
+// an activity you did that no planned session counts it for
+function extraRow(a, fused){
+  return `<button class="sess extra" data-open="${a.id}" style="--c:var(--${a.type})"><span class="bar"></span><span class="tx"><b>${esc(a.name)}</b><small>${esc(statText(a))}</small></span><span class="stx">${fused ? 'You did' : 'Extra'}</span></button>`;
 }
 function openSession(id){
   const M = planModel(); if (!M) return; const s = M.byId.get(id); if (!s) return;
@@ -2278,6 +2316,8 @@ function openSession(id){
     <div class="sess-facts"><span><b>${esc(sessAmount(s))}</b>${s.type === 'swim' && s.metres ? `<small>about ${s.mins} min</small>` : '<small>planned</small>'}</span><span><b>${EFFORTS[s.effort]}</b><small>effort</small></span>${s.optional ? '<span><b>Optional</b><small>if you have time</small></span>' : ''}</div>
     <ol class="steps">${s.steps.map(t => `<li>${esc(t)}</li>`).join('')}</ol>
     ${x.status === 'done' ? `<p class="banner">${x.act ? `Done: <b>${esc(x.act.name)}</b>, ${statText(x.act)}.` : 'Marked as done.'}</p>` : x.status === 'skipped' ? '<p class="banner">Skipped.</p>' : ''}
+    ${x.status === 'pending' ? `<p class="banner">You did <b>${esc(x.cand.name)}</b> (${statText(x.cand)}) on this day. Count it for this session?</p>
+      <div class="btnrow"><button class="btn primary" data-act="match" data-id="${s.id}">Match sessions</button><button class="btn" data-act="nomatch" data-id="${s.id}">Keep separate</button></div>` : ''}
     <div class="stack">
       ${canRecord && s.type !== 'swim' ? `<button class="btn acc block" data-act="sess-record" data-id="${s.id}">Record it now</button>` : ''}
       ${x.status !== 'done' && x.status !== 'skipped' ? `<button class="btn ${canRecord && s.type !== 'swim' ? '' : 'primary '}block" data-act="sess-log" data-id="${s.id}">${I.edit}Log it</button>
@@ -2358,10 +2398,30 @@ function openPhases(){
   openSheet('phases', `<h2>Training phases</h2><p class="note" style="margin-top:-4px">Race day: ${DFL.format(fromDkey(M.p.race))}. Tap a phase to see its weeks.</p>${rows}
     <div class="stack"><button class="btn block" data-act="close-sheet">Close</button></div>`);
 }
+// Move a session to a date. If an activity of the same sport that isn't counted for anything is already on that day,
+// the two show fused with a "Match sessions?" button rather than matching silently.
+function moveSession(M, s, date){
+  const st = planStatus(M), cand = liveActs().filter(a => a.type === s.type && dkey(a.start) === date && !st.used.has(a.id)).sort((a, b) => a.start - b.start)[0];
+  setPlan(p => {
+    p.moves ||= {}; p.moves[s.id] = date;
+    for (const k of ['links', 'pend', 'unlink']) if (p[k]) delete p[k][s.id];
+    if (cand){ p.pend ||= {}; p.pend[s.id] = cand.id; }
+  });
+  return cand;
+}
 function movePlanned(id, date){
   const M = planModel(), s = M?.byId.get(id); if (!s) return;
-  setPlan(p => { p.moves ||= {}; p.moves[id] = date; });
-  closeLayer(); toast(`Moved to ${DFW.format(fromDkey(date))}.`);
+  const cand = moveSession(M, s, date);
+  closeLayer(); toast(cand ? `Moved to ${DFW.format(fromDkey(date))}, where you did ${cand.name}.` : `Moved to ${DFW.format(fromDkey(date))}.`);
+}
+function matchSession(id, yes){
+  setPlan(p => {
+    const a = p.pend?.[id]; if (!a) return;
+    delete p.pend[id];
+    if (yes){ p.links ||= {}; p.links[id] = a; } else { p.unlink ||= {}; p.unlink[id] = a; }
+  });
+  if (!$('#sheet-wrap').hidden) closeLayer();
+  toast(yes ? 'Matched.' : 'Kept separate.');
 }
 function openPlanSettings(){
   openSheet('plan-settings', `<h2>Plan settings</h2>${planForm(S.settings.plan || {}, false)}
@@ -2796,14 +2856,14 @@ function pdragStop(drop){
   d.ghost.remove(); d.card.classList.remove('dragging'); d.over?.classList.remove('drop'); document.body.classList.remove('pdragging');
   if (drop && d.over){
     const date = d.over.dataset.date, M = planModel(), s = M?.byId.get(d.id); if (!s) return;
-    setPlan(p => { p.moves ||= {}; p.moves[d.id] = date; });
+    const cand = moveSession(M, s, date);
     if (S.tab === 'plan') renderPlan();
-    toast(`Moved ${s.title.charAt(0).toLowerCase() + s.title.slice(1)} to ${DFW.format(fromDkey(date))}.`);
+    toast(`Moved ${s.title.charAt(0).toLowerCase() + s.title.slice(1)} to ${DFW.format(fromDkey(date))}${cand ? `, where you did ${cand.name}` : ''}.`);
   }
 }
 document.addEventListener('pointerdown', e => {
   pdragEat = false;
-  const card = e.target.closest('#v-plan .sess'); if (!card || e.button > 0 || pdrag) return;
+  const card = e.target.closest('#v-plan .sess[data-sess]'); if (!card || e.button > 0 || pdrag) return;
   pdrag = { card, id:card.dataset.sess, from:card.closest('.pday')?.dataset.date, pid:e.pointerId, x:e.clientX, y:e.clientY, lx:e.clientX, ly:e.clientY, touch:e.pointerType !== 'mouse', on:false };
   if (pdrag.touch) pdrag.timer = setTimeout(() => { if (pdrag && !pdrag.on) pdragStart(); }, 350);
 });
@@ -2907,8 +2967,8 @@ document.addEventListener('click', e => {
     case 'sess-apply': {
       const M = planModel(), s = M?.byId.get(d.id); if (!s) break;
       const date = $('#s-date').value, len = parseInt($('#s-len').value, 10), curLen = s.type === 'swim' && s.metres ? s.metres : s.mins;
+      if (date && date !== dkey(sessDate(M, s))) moveSession(M, s, date);
       setPlan(p => {
-        if (date && date !== dkey(sessDate(M, s))){ p.moves ||= {}; p.moves[s.id] = date; }
         if (len > 0 && len !== curLen){
           if (s.custom && !s.id.includes('@')){ const c = (p.custom || []).find(x => x.id === s.cid); if (c){ if (s.type === 'swim'){ c.metres = len; c.mins = swimMins(len); } else c.mins = len; } }
           else if (!s.custom){ p.edits ||= {}; p.edits[s.id] = len; }
@@ -2947,6 +3007,7 @@ document.addEventListener('click', e => {
     case 'sess-record': { const s = planModel()?.byId.get(d.id); closeLayer(); if (s){ S.recType = s.type; S.settings.defType = s.type; saveLocal(); } setTimeout(() => showTab('record'), 60); break; }
     case 'sess-log': { const M = planModel(), s = M?.byId.get(d.id); if (!s) break; closeLayer();
       setTimeout(() => openManual({ type:s.type, date:dkey(sessDate(M, s)), mins:s.mins, metres:s.metres, km:s.km, title:s.title }), 80); break; }
+    case 'match': case 'nomatch': matchSession(d.id, d.act === 'match'); break;
     case 'sess-open': closeSheetNow(); history.replaceState({ layer:'detail' }, ''); openDetail(d.id, false); break;
   }
 });
